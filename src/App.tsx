@@ -40,15 +40,7 @@ export default function App() {
       const saved = localStorage.getItem('bingo_user');
       if (saved) return JSON.parse(saved);
     } catch {}
-    return {
-      id: 'usr-player-1',
-      username: 'lucky_player',
-      displayName: 'Lucky Player',
-      email: 'player@bingo.app',
-      role: 'player',
-      balance: 100.0,
-      stats: { gamesPlayed: 12, bingosWon: 3, cardsPlayed: 28 },
-    };
+    return null;
   });
 
   const [game, setGame] = useState<GameSession | null>(null);
@@ -95,7 +87,13 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
   const [isSavedCardsOpen, setIsSavedCardsOpen] = useState<boolean>(false);
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
-  const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
+  const [isAuthOpen, setIsAuthOpen] = useState<boolean>(() => {
+    try {
+      return !localStorage.getItem('bingo_user');
+    } catch {
+      return true;
+    }
+  });
   const [celebrationWinner, setCelebrationWinner] = useState<Winner | null>(null);
   const [selectedBallNumber, setSelectedBallNumber] = useState<number | null>(null);
 
@@ -469,7 +467,7 @@ export default function App() {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': currentUser?.id || 'usr-player-1',
+          'x-user-id': currentUser?.id || '',
         },
       });
 
@@ -1058,7 +1056,7 @@ export default function App() {
       <SavedCardsModal
         isOpen={isSavedCardsOpen}
         onClose={() => setIsSavedCardsOpen(false)}
-        userId={currentUser?.id || 'usr-player-1'}
+        userId={currentUser?.id || ''}
         onCardRestored={(card) => setCards((prev) => [...prev, card])}
       />
 
@@ -1071,9 +1069,14 @@ export default function App() {
 
       {/* Authentication Modal */}
       <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
+        isOpen={isAuthOpen || !currentUser}
+        onClose={() => {
+          if (currentUser) {
+            setIsAuthOpen(false);
+          }
+        }}
         onSuccess={handleLoginSuccess}
+        canClose={Boolean(currentUser)}
       />
     </div>
   );

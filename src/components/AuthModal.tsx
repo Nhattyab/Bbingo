@@ -6,9 +6,15 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (user: UserType, token: string) => void;
+  canClose?: boolean;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  canClose = true,
+}) => {
   const [isRegister, setIsRegister] = useState<boolean>(false);
   const [username, setUsername] = useState<string>('');
   const [email, setEmail] = useState<string>('');
@@ -82,8 +88,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="fixed inset-0" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="fixed inset-0" onClick={canClose ? onClose : undefined} />
 
       <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden z-10 animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
         {/* Header */}
@@ -94,18 +100,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             </div>
             <div>
               <h3 className="font-bold text-sm">
-                {isRegister ? 'Create Player Account' : 'Sign In / Switch Account'}
+                {isRegister ? 'Create Player Account' : canClose ? 'Sign In / Switch Account' : 'Welcome to 10:20 BINGO · Sign In'}
               </h3>
               <p className="text-[11px] text-indigo-100">10:20 BINGO Championship</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          {canClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto text-xs text-slate-700">

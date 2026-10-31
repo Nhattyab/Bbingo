@@ -2497,7 +2497,10 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
 
 app.get('/api/auth/me', (req: Request, res: Response) => {
   const userId = (req.headers['x-user-id'] as string) || (req.query.userId as string);
-  const user = userId ? users.get(userId) : users.get('usr-player-1');
+  if (!userId) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+  const user = users.get(userId);
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
