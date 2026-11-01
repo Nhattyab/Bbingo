@@ -347,12 +347,35 @@ export default function App() {
 
         sse.addEventListener('CARD_BLOCKED', (e: MessageEvent) => {
           try {
-            const blk = JSON.parse(e.data);
-            setCards((prev) =>
-              prev.map((c) =>
-                c.id === blk.cardId ? { ...c, isBlocked: true, blockReason: blk.reason } : c
-              )
-            );
+            const data = JSON.parse(e.data);
+            const blockedCard = data.blockedCard || data;
+            const targetCardId = data.cardId || blockedCard.cardId;
+            const blockReason = data.reason || blockedCard.reason || 'Card is blocked.';
+            if (targetCardId) {
+              setCards((prev) =>
+                prev.map((c) =>
+                  c.id === targetCardId ? { ...c, isBlocked: true, blockReason } : c
+                )
+              );
+              setGame((prev) => {
+                if (!prev) return prev;
+                const newBlocked = [
+                  ...(prev.blockedCards || []).filter((b) => b.cardId !== targetCardId),
+                  {
+                    cardId: targetCardId,
+                    gameId: prev.id,
+                    reason: blockReason,
+                    status: 'blocked' as const,
+                    blockedAt: Date.now(),
+                    blockedBy: blockedCard.blockedBy || 'System',
+                  },
+                ];
+                return { ...prev, blockedCards: newBlocked };
+              });
+            }
+            if (data.game) {
+              handleGameUpdate(data.game);
+            }
           } catch {}
         });
 
@@ -743,20 +766,51 @@ export default function App() {
           setTimeout(() => setClaimFeedback(null), 8000);
         }
       } else {
-        // If card was blocked, update its state immediately
-        if (data.isBlocked || data.status === 'blocked') {
-          setCards((prev) =>
-            prev.map((c) =>
-              c.id === cardId
-                ? { ...c, isBlocked: true, blockReason: data.reason || data.error || 'Card is blocked.' }
-                : c
-            )
-          );
-        }
-        alert(data.reason || data.error || 'Bingo claim could not be verified.');
+        const reasonText = data.reason || data.error || 'False Bingo claim! Card has been blocked.';
+
+        // 1. Immediately update cards in local state so card and BINGO button are instantly blocked
+        setCards((prev) =>
+          prev.map((c) =>
+            c.id === cardId
+              ? { ...c, isBlocked: true, blockReason: reasonText }
+              : c
+          )
+        );
+
+        // 2. Immediately update game.blockedCards in local state
+        setGame((prev) => {
+          if (!prev) return prev;
+          const newBlocked = [
+            ...(prev.blockedCards || []).filter((b) => b.cardId !== cardId),
+            {
+              cardId,
+              gameId: prev.id,
+              userId: currentUser.id,
+              reason: reasonText,
+              status: 'blocked' as const,
+              blockedAt: Date.now(),
+              blockedBy: 'System Auto-Verification',
+            },
+          ];
+          return { ...prev, blockedCards: newBlocked };
+        });
+
+        // 3. Immediate, non-blocking toast warning banner
+        setClaimFeedback({
+          message: reasonText,
+          type: 'warning',
+        });
+        setTimeout(() => setClaimFeedback(null), 8000);
+
+        // 4. Authoritatively sync with server
+        fetchGameAndCards();
       }
     } catch {
-      alert('Network failure submitting claim. Please retry.');
+      setClaimFeedback({
+        message: 'Network failure submitting claim. Please retry.',
+        type: 'warning',
+      });
+      setTimeout(() => setClaimFeedback(null), 6000);
     } finally {
       setClaimingCardId(null);
     }
@@ -1003,6 +1057,7 @@ export default function App() {
           registrationOpen={Boolean(game?.registrationOpen)}
           claimWindowActive={Boolean(game?.claimWindowActive)}
           claimWindowSeconds={claimWindowSeconds}
+          blockedCards={game?.blockedCards || []}
           gridColumns={userPreferences.gridColumns}
           sortBy={userPreferences.sortBy}
           onToggleMark={handleToggleMark}

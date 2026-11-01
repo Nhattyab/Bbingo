@@ -1159,13 +1159,14 @@ app.get('/api/game/cards', (req: Request, res: Response) => {
     .map((card) => {
       const regKey = getRegKey(currentGame.id, card.id);
       const isReg = registrationsMap.has(regKey);
-      const isBlockedInCurrentGame = currentGame.blockedCards.some((b) => b.cardId === card.id);
+      const blockedRecord = currentGame.blockedCards.find((b) => b.cardId === card.id);
+      const isBlockedInCurrentGame = card.isBlocked || Boolean(blockedRecord);
       return {
         ...card,
         gameId: currentGame.id,
         isRegistered: isReg,
         isBlocked: isBlockedInCurrentGame,
-        blockReason: isBlockedInCurrentGame ? 'Card is blocked.' : undefined,
+        blockReason: blockedRecord?.reason || card.blockReason || (isBlockedInCurrentGame ? 'Card is blocked.' : undefined),
       };
     });
 
@@ -1181,13 +1182,14 @@ app.get('/api/game/cards/:id', (req: Request, res: Response) => {
   }
   const regKey = getRegKey(currentGame.id, card.id);
   const isReg = registrationsMap.has(regKey);
-  const isBlockedInCurrentGame = currentGame.blockedCards.some((b) => b.cardId === card.id);
+  const blockedRecord = currentGame.blockedCards.find((b) => b.cardId === card.id);
+  const isBlockedInCurrentGame = card.isBlocked || Boolean(blockedRecord);
   res.json({
     ...card,
     gameId: currentGame.id,
     isRegistered: isReg,
     isBlocked: isBlockedInCurrentGame,
-    blockReason: isBlockedInCurrentGame ? 'Card is blocked.' : undefined,
+    blockReason: blockedRecord?.reason || card.blockReason || (isBlockedInCurrentGame ? 'Card is blocked.' : undefined),
   });
 });
 
@@ -2230,7 +2232,7 @@ app.post('/api/game/claim', (req: Request, res: Response) => {
     saveStateToDisk();
 
     // Broadcast card blocked and claim record to admin, without halting game or starting claim window
-    broadcastEvent('CARD_BLOCKED', { blockedCard: blockedRecord, game: currentGame });
+    broadcastEvent('CARD_BLOCKED', { cardId: card.id, reason: card.blockReason, blockedCard: blockedRecord, game: currentGame });
     broadcastEvent('CLAIM_UPDATED', { claim: falseClaimRecord, game: currentGame });
     broadcastEvent('GAME_UPDATED', currentGame);
 

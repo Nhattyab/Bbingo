@@ -10,7 +10,7 @@ import {
   Sparkles,
   Clock,
 } from 'lucide-react';
-import { BingoCard, BingoColumn, GameStatus } from '../types/bingo';
+import { BingoCard, BingoColumn, GameStatus, BlockedCard } from '../types/bingo';
 import { COLUMN_COLORS } from '../utils/bingoRules';
 
 interface BingoCardViewProps {
@@ -20,6 +20,7 @@ interface BingoCardViewProps {
   registrationOpen: boolean;
   claimWindowActive?: boolean;
   claimWindowSeconds?: number;
+  blockedCards?: BlockedCard[];
   gridColumns: number;
   sortBy: 'id' | 'recent' | 'registration' | 'marked';
   onToggleMark: (cardId: string, row: number, col: number, currentMarked: boolean) => void;
@@ -41,6 +42,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
   registrationOpen,
   claimWindowActive,
   claimWindowSeconds,
+  blockedCards,
   gridColumns,
   sortBy,
   onToggleMark,
@@ -169,12 +171,14 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
           const isRegistering = registeringCardId === card.id;
           const isClaiming = claimingCardId === card.id;
           const markedCount = getMarkedCount(card);
+          const isCardBlocked = Boolean(card.isBlocked || blockedCards?.some((b) => b.cardId === card.id));
+          const cardBlockReason = card.blockReason || blockedCards?.find((b) => b.cardId === card.id)?.reason || 'Card is blocked.';
 
           return (
             <div
               key={card.id}
               className={`rounded-2xl border transition-all p-3.5 flex flex-col justify-between relative ${
-                card.isBlocked
+                isCardBlocked
                   ? 'border-rose-300 bg-rose-50/40 shadow-xs'
                   : card.isRegistered
                   ? 'border-indigo-200 bg-slate-50/50 shadow-xs'
@@ -194,7 +198,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
 
                 {/* Status Badges and Small 'X' Delete Button */}
                 <div className="flex items-center gap-1.5 shrink-0">
-                  {card.isBlocked ? (
+                  {isCardBlocked ? (
                     <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
                       <ShieldAlert className="w-3 h-3 text-rose-600" />
                       Blocked
@@ -222,6 +226,14 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Blocked Alert Banner on Card */}
+              {isCardBlocked && (
+                <div className="mb-2 px-2.5 py-1.5 bg-rose-100/90 text-rose-900 rounded-xl text-[10px] font-bold flex items-center gap-1.5 border border-rose-200 animate-in fade-in">
+                  <ShieldAlert className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                  <span className="truncate">Blocked: {cardBlockReason}</span>
+                </div>
+              )}
 
               {/* 5x5 Card Matrix */}
               <div className="bg-slate-900 p-2 sm:p-2.5 rounded-xl shadow-inner border border-slate-800">
@@ -263,16 +275,16 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                         <button
                           key={`${r}-${c}`}
                           type="button"
-                          disabled={card.isBlocked}
+                          disabled={isCardBlocked}
                           onClick={() => {
-                            if (card.isBlocked) return;
+                            if (isCardBlocked) return;
                             onToggleMark(card.id, r, c, isMarked);
                           }}
                           className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-bold transition-all relative select-none cursor-pointer ${
                             isMarked
                               ? 'bg-gradient-to-tr from-emerald-500 to-teal-500 text-white font-black shadow-xs ring-2 ring-emerald-300 scale-98'
                               : 'bg-white hover:bg-slate-100 text-slate-800 border border-slate-200'
-                          } ${card.isBlocked ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          } ${isCardBlocked ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           <span>{val}</span>
                         </button>
@@ -284,7 +296,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
 
               {/* Card Action Buttons: Register or Claim */}
               <div className="pt-2.5 mt-2 border-t border-slate-100">
-                {!card.isRegistered && !card.isBlocked && (
+                {!card.isRegistered && !isCardBlocked && (
                   <button
                     type="button"
                     disabled={isRegistering || !registrationOpen || isPlayActive}
@@ -307,7 +319,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                 )}
 
                 {/* Prominent BINGO Claim Button for Registered Card during Active Game */}
-                {card.isRegistered && !card.isBlocked && isClaimEligible && (
+                {card.isRegistered && !isCardBlocked && isClaimEligible && (
                   <button
                     type="button"
                     disabled={isClaiming}
@@ -326,7 +338,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                 )}
 
                 {/* Pre-game Countdown state for Registered Card */}
-                {card.isRegistered && !card.isBlocked && (gameStatus === 'starting_countdown' || gameStatus === 'pre_game_countdown') && (
+                {card.isRegistered && !isCardBlocked && (gameStatus === 'starting_countdown' || gameStatus === 'pre_game_countdown') && (
                   <div className="w-full py-2 px-3 rounded-xl font-semibold text-xs bg-amber-50 text-amber-800 border border-amber-200 text-center flex items-center justify-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-amber-600 animate-spin" />
                     <span>Registered · BINGO button activates when game starts</span>
@@ -334,20 +346,20 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                 )}
 
                 {/* Registered state prior to game start */}
-                {card.isRegistered && !card.isBlocked && !isClaimEligible && gameStatus !== 'starting_countdown' && gameStatus !== 'pre_game_countdown' && (
+                {card.isRegistered && !isCardBlocked && !isClaimEligible && gameStatus !== 'starting_countdown' && gameStatus !== 'pre_game_countdown' && (
                   <div className="w-full py-2 px-3 rounded-xl font-bold text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 text-center flex items-center justify-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Registered for this Game</span>
                   </div>
                 )}
 
-                {/* Blocked Card: Disabled BINGO Claim Button as requested */}
-                {card.isBlocked && (
+                {/* Blocked Card: Automatically Disabled BINGO Claim Button */}
+                {isCardBlocked && (
                   <button
                     type="button"
                     disabled={true}
                     className="w-full py-2.5 px-3 rounded-xl font-black text-sm uppercase tracking-widest bg-slate-200 text-slate-400 border border-slate-300 flex items-center justify-center gap-2 cursor-not-allowed select-none opacity-80"
-                    title="This card is blocked and cannot claim Bingo."
+                    title={`This card is blocked: ${cardBlockReason}`}
                   >
                     <Trophy className="w-4 h-4 text-slate-400" />
                     <span>BINGO (BLOCKED)</span>
