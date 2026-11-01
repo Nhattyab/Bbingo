@@ -447,14 +447,101 @@ export function AdminDashboard({
     }
   };
 
-  const handleResolveClaim = async (claimId: string, action: 'confirm' | 'reject', reason?: string) => {
+  const handleApproveClaim = async (claimId: string) => {
+    try {
+      const res = await fetch('/api/admin/claims/approve', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id || 'usr-host-1',
+        },
+        body: JSON.stringify({ claimId }),
+      });
+      if (res.ok) {
+        onRefreshGame();
+        fetchAllAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to approve claim.');
+      }
+    } catch {
+      alert('Network failure approving claim.');
+    }
+  };
+
+  const handleRejectClaim = async (claimId: string, reason: string, blockCard?: boolean) => {
+    try {
+      const res = await fetch('/api/admin/claims/reject', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id || 'usr-host-1',
+        },
+        body: JSON.stringify({ claimId, reason, blockCard }),
+      });
+      if (res.ok) {
+        onRefreshGame();
+        fetchAllAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to reject claim.');
+      }
+    } catch {
+      alert('Network failure rejecting claim.');
+    }
+  };
+
+  const handleConfirmWinner = async (claimId: string) => {
+    try {
+      const res = await fetch('/api/admin/claims/confirm-winner', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id || 'usr-host-1',
+        },
+        body: JSON.stringify({ claimId }),
+      });
+      if (res.ok) {
+        onRefreshGame();
+        fetchAllAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to confirm winner.');
+      }
+    } catch {
+      alert('Network failure confirming winner.');
+    }
+  };
+
+  const handleFinalizeGame = async () => {
+    try {
+      const res = await fetch('/api/admin/game/finalize-winners', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUser?.id || 'usr-host-1',
+        },
+      });
+      if (res.ok) {
+        onRefreshGame();
+        fetchAllAdminData();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to finalize game.');
+      }
+    } catch {
+      alert('Network failure finalizing game.');
+    }
+  };
+
+  const handleResolveClaim = async (claimId: string, action: 'confirm' | 'reject' | 'approve', reason?: string, blockCard?: boolean) => {
     const res = await fetch('/api/admin/claims/resolve', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-user-id': currentUser?.id || 'usr-host-1',
       },
-      body: JSON.stringify({ claimId, action, reason }),
+      body: JSON.stringify({ claimId, action, reason, blockCard }),
     });
     if (res.ok) {
       onRefreshGame();
@@ -477,7 +564,9 @@ export function AdminDashboard({
   };
 
   const isSuspended = Boolean(game?.isServiceSuspended);
-  const pendingClaimsCount = claims.filter((c) => c.status === 'submitted' || c.status === 'under_verification').length;
+  const pendingClaimsCount = claims.filter(
+    (c) => c.status === 'pending' || c.status === 'approved' || c.status === 'submitted' || c.status === 'under_verification'
+  ).length;
   const registeredCardsCount = cards.filter((c) => c.isRegistered && !c.isBlocked).length;
 
   const navigationItems = [
@@ -830,7 +919,12 @@ export function AdminDashboard({
               <ClaimsMonitoringTab
                 claims={claims}
                 game={game}
+                onApproveClaim={handleApproveClaim}
+                onRejectClaim={handleRejectClaim}
+                onConfirmWinner={handleConfirmWinner}
+                onFinalizeGame={handleFinalizeGame}
                 onResolveClaim={handleResolveClaim}
+                claimWindowSeconds={claimWindowSeconds}
                 onInspectCard={(cardId) => {
                   const card = cards.find((c) => c.id === cardId);
                   if (card) setInspectingCard(card);

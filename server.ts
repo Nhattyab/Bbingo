@@ -95,16 +95,29 @@ export interface Winner {
 export interface BingoClaim {
   id: string;
   gameId: string;
+  gameCode?: string;
   cardId: string;
   userId: string;
   userName: string;
   pattern: WinningPattern;
-  status: 'submitted' | 'under_verification' | 'confirmed' | 'rejected';
+  status: 'pending' | 'approved' | 'confirmed' | 'rejected' | 'submitted' | 'under_verification';
   prizeCategory: string;
   prizeAmount: number;
   submittedAt: number;
   verifiedAt?: number;
+  approvedAt?: number;
+  approvedBy?: string;
   rejectionReason?: string;
+  cardMatrix?: (number | 'FREE')[][];
+  cardMarked?: boolean[][];
+  calledNumbersAtClaim?: number[];
+  autoVerification?: {
+    valid: boolean;
+    reason: string;
+    diagnostics?: string;
+    winningPatternName?: string;
+    winningCoordinates?: [number, number][];
+  };
 }
 
 export interface PrizeTier {
@@ -478,7 +491,7 @@ export function verifyClaimAuthoritative(
 
     return {
       valid: false,
-      reason: 'Card is blocked.',
+      reason: 'Pattern requirements not satisfied with official called numbers.',
       diagnostics: diagnosticMsg,
     };
   }
@@ -496,8 +509,14 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 3000;
+const args = process.argv.slice(2);
+const portIndex = args.indexOf('--port');
+const cliPort = portIndex !== -1 && args[portIndex + 1] ? parseInt(args[portIndex + 1], 10) : null;
+const hostIndex = args.indexOf('--host');
+const HOST = hostIndex !== -1 && args[hostIndex + 1] ? args[hostIndex + 1] : '0.0.0.0';
+
 const isProd = process.env.NODE_ENV === 'production';
+const PORT = cliPort || (!isProd ? 3000 : (process.env.PORT ? parseInt(process.env.PORT, 10) : 3000));
 
 app.use(express.json());
 
@@ -987,15 +1006,18 @@ function callNextAuthoritativeNumber(): BingoBall | null {
 
   if (available.length === 0) {
     currentGame.status = 'game_completed';
-    currentGame.announcements.unshift('All 75 numbers called! Game completed with no winner.');
+    const completionDeadline = Date.now() + 30000;
+    currentGame.completionDeadline = completionDeadline;
+    currentGame.announcements.unshift('All 75 numbers called! Game completed with no winner. Transitioning to next game in 30 seconds.');
     stopAutoCaller();
+    broadcastEvent('GAME_COMPLETED', { game: currentGame, completionDeadline });
     broadcastEvent('GAME_UPDATED', currentGame);
 
     if (completionTimer) clearTimeout(completionTimer);
     completionTimer = setTimeout(() => {
       completionTimer = null;
       transitionToNextGame();
-    }, 20000);
+    }, 30000);
     return null;
   }
 
@@ -2143,156 +2165,190 @@ app.post('/api/game/claim', (req: Request, res: Response) => {
   // Ensure center FREE space is always marked
   card.marked[2][2] = true;
 
-  // 7. Authoritative validation
+  // 7. Authoritative automated validation
   const activeRule = currentGame.activeWinningRule;
   const isAutoComplete = Boolean(autoComplete);
 
-  const verification = verifyClaimAuthoritative(card, officialNums, activeRule, isAutoComplete);
+  const verification = verifyClaimAuthoritative(card, officialNums, activeRule, isAutoComplete, clientMarked);
 
-  const claimRecord: BingoClaim = {
-    id: `claim-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    gameId: currentGame.id,
-    cardId,
-    userId,
-    userName: userName || 'Lucky Player',
-    pattern: activeRule,
-    status: verification.valid ? 'confirmed' : 'rejected',
-    prizeCategory: WINNING_RULE_LABELS[activeRule] || 'Championship Prize',
-    prizeAmount: currentGame.totalPrizePool,
-    submittedAt: Date.now(),
-    verifiedAt: Date.now(),
-    rejectionReason: verification.reason,
-  };
-  claims.push(claimRecord);
-
-  // FALSE CLAIM HANDLING: Block the card persistently
+  // If the card fails automatic verification (false claim):
+  // Do NOT start checking winning cards, do NOT halt calling, do NOT open claim window.
+  // Instead, block the card for false Bingo claim.
   if (!verification.valid) {
     card.isBlocked = true;
-    card.blockReason = 'Card is blocked.';
+    card.blockReason = verification.reason || 'False Bingo claim';
 
     const blockedRecord: BlockedCard = {
-      cardId,
+      cardId: card.id,
       gameId: currentGame.id,
       userId: card.userId,
-      reason: 'Card is blocked.',
+      reason: card.blockReason,
       status: 'blocked',
       blockedAt: Date.now(),
-      blockedBy: 'Server Referee',
+      blockedBy: 'System Auto-Verification',
     };
 
-    currentGame.blockedCards = currentGame.blockedCards.filter((b) => b.cardId !== cardId);
+    currentGame.blockedCards = currentGame.blockedCards.filter((b) => b.cardId !== card.id);
     currentGame.blockedCards.push(blockedRecord);
+
+    const falseClaimRecord: BingoClaim = {
+      id: `claim-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+      gameId: currentGame.id,
+      gameCode: currentGame.gameCode,
+      cardId,
+      userId,
+      userName: userName || (users.get(userId)?.displayName) || 'Player',
+      pattern: activeRule,
+      status: 'rejected',
+      prizeCategory: WINNING_RULE_LABELS[activeRule] || 'Championship Prize',
+      prizeAmount: currentGame.totalPrizePool,
+      submittedAt: Date.now(),
+      verifiedAt: Date.now(),
+      rejectionReason: `False claim blocked: ${verification.reason}`,
+      cardMatrix: card.matrix,
+      cardMarked: card.marked,
+      calledNumbersAtClaim: officialNums,
+      autoVerification: {
+        valid: false,
+        reason: verification.reason,
+        diagnostics: verification.diagnostics,
+      },
+    };
+    claims.unshift(falseClaimRecord);
+
+    logAuditEvent(
+      userId,
+      falseClaimRecord.userName,
+      'player',
+      'FALSE_CLAIM_BLOCKED',
+      'card',
+      cardId,
+      `False Bingo claim on Card ${cardId}. Card blocked. Reason: ${verification.reason}. Number calling continues uninterrupted.`,
+      'warning'
+    );
 
     saveStateToDisk();
 
+    // Broadcast card blocked and claim record to admin, without halting game or starting claim window
     broadcastEvent('CARD_BLOCKED', { blockedCard: blockedRecord, game: currentGame });
+    broadcastEvent('CLAIM_UPDATED', { claim: falseClaimRecord, game: currentGame });
+    broadcastEvent('GAME_UPDATED', currentGame);
 
     return res.status(400).json({
       success: false,
-      blocked: true,
-      cardId,
-      message: 'Card is blocked.',
-      reason: 'Card is blocked.',
-      claim: claimRecord,
+      isBlocked: true,
+      status: 'blocked',
+      error: `False Bingo claim! Card ${card.id} has been blocked. ${verification.reason}`,
+      reason: `False Bingo claim! Card ${card.id} has been blocked. ${verification.reason}`,
+      autoVerification: {
+        valid: false,
+        reason: verification.reason,
+        diagnostics: verification.diagnostics,
+      },
     });
   }
 
-  // VALID CLAIM HANDLING
-  // Record verified winner with full transparent card evidence
-  const winnerRecord: Winner = {
-    id: `win-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+  // Check if this card already has a pending or approved claim in this game
+  const existingPendingClaim = claims.find(
+    (c) => c.cardId === cardId && c.gameId === currentGame.id && (c.status === 'pending' || c.status === 'approved')
+  );
+  if (existingPendingClaim) {
+    return res.json({
+      success: true,
+      pending: true,
+      message: 'Your Bingo claim for this card is already being reviewed by the tournament host.',
+      claim: existingPendingClaim,
+      claimWindowDeadline: currentGame.claimWindowDeadline,
+    });
+  }
+
+  // The card satisfies everything! The checking process proceeds:
+  const claimRecord: BingoClaim = {
+    id: `claim-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
     gameId: currentGame.id,
-    claimId: claimRecord.id,
+    gameCode: currentGame.gameCode,
     cardId,
     userId,
-    displayName: claimRecord.userName,
-    winningPattern: verification.winningPatternName || WINNING_RULE_LABELS[activeRule],
-    prizeCategory: claimRecord.prizeCategory,
+    userName: userName || (users.get(userId)?.displayName) || 'Player',
+    pattern: activeRule,
+    status: 'pending', // Pending Verification by Admin
+    prizeCategory: WINNING_RULE_LABELS[activeRule] || 'Championship Prize',
     prizeAmount: currentGame.totalPrizePool,
-    confirmedAt: Date.now(),
+    submittedAt: Date.now(),
     cardMatrix: card.matrix,
-    calledNumbersAtWin: officialNums,
-    winningCoordinates: verification.winningCoordinates,
+    cardMarked: card.marked,
+    calledNumbersAtClaim: officialNums,
+    autoVerification: {
+      valid: true,
+      reason: verification.reason,
+      diagnostics: verification.diagnostics,
+      winningCoordinates: verification.winningCoordinates,
+      winningPatternName: verification.winningPatternName,
+    },
   };
+  claims.unshift(claimRecord);
 
-  currentGame.winners.push(winnerRecord);
+  // Halt number calling immediately
+  stopAutoCaller();
 
-  // Divide total prize pool evenly across all verified winners in this round
-  const winnerCount = currentGame.winners.length;
-  const splitPrize = Math.round((currentGame.totalPrizePool / winnerCount) * 100) / 100;
-  currentGame.winners.forEach((w) => {
-    w.prizeAmount = splitPrize;
-  });
+  // Status changes to checking_winners ("Checking Winning Cards")
+  currentGame.status = 'checking_winners';
 
-  // PART 4: Initiate or update 15-Second Winner Claim Window
+  // 15-Second Claim Window for other players to submit claims
   if (!currentGame.claimWindowActive) {
-    // Stop number calling immediately
-    stopAutoCaller();
-
-    currentGame.status = 'checking_winners';
     currentGame.claimWindowActive = true;
     const claimDeadline = Date.now() + 15000;
     currentGame.claimWindowDeadline = claimDeadline;
 
     currentGame.announcements.unshift(
-      'A winner has been found! Claim Bingo within 15 seconds before the game is closed.'
+      `Bingo claim verified for ${claimRecord.userName} (Card ${cardId})! Checking Winning Cards. 15-second claim window is now OPEN for other players to submit claims.`
     );
 
     broadcastEvent('CLAIM_WINDOW_STARTED', {
       claimWindowDeadline: claimDeadline,
-      winner: winnerRecord,
+      claim: claimRecord,
       game: currentGame,
     });
-    broadcastEvent('GAME_UPDATED', currentGame);
 
-    // Authoritative 15-second claim window timer
+    if (claimWindowTimer) clearTimeout(claimWindowTimer);
     claimWindowTimer = setTimeout(() => {
       claimWindowTimer = null;
       currentGame.claimWindowActive = false;
       currentGame.claimWindowDeadline = undefined;
-      currentGame.status = 'game_completed';
-      const completionDeadline = Date.now() + 20000;
-      currentGame.completionDeadline = completionDeadline;
-
-      const winnerNames = currentGame.winners.map((w) => `${w.displayName} (${w.cardId})`).join(', ');
       currentGame.announcements.unshift(
-        `🏆 GAME COMPLETED! Confirmed Winners: ${winnerNames}. Transitioning to next game in 20 seconds.`
+        '15-second claim window has closed. Host is reviewing all pending claims in Claims & Monitoring.'
       );
-
       saveStateToDisk();
-
-      broadcastEvent('GAME_COMPLETED', {
-        winners: currentGame.winners,
-        game: currentGame,
-        completionDeadline,
-      });
+      broadcastEvent('CLAIM_WINDOW_ENDED', { game: currentGame });
       broadcastEvent('GAME_UPDATED', currentGame);
-
-      if (completionTimer) clearTimeout(completionTimer);
-      completionTimer = setTimeout(() => {
-        completionTimer = null;
-        transitionToNextGame();
-      }, 20000);
     }, 15000);
   } else {
-    // Additional valid winner received inside the 15-second window
     currentGame.announcements.unshift(
-      `Another valid claim verified! ${winnerRecord.displayName} with Card ${cardId}.`
+      `Additional valid Bingo claim received from ${claimRecord.userName} (Card ${cardId}) within the 15-second claim window.`
     );
-    broadcastEvent('WINNER_VERIFIED_IN_WINDOW', {
-      winner: winnerRecord,
-      winners: currentGame.winners,
-      game: currentGame,
-    });
-    broadcastEvent('GAME_UPDATED', currentGame);
   }
+
+  logAuditEvent(
+    userId,
+    claimRecord.userName,
+    'player',
+    'CLAIM_SUBMITTED',
+    'claim',
+    claimRecord.id,
+    `Valid claim submitted for Card ${cardId}. Auto-verification: PASSED. Checking winning cards started. Awaiting admin review.`,
+    'info'
+  );
 
   saveStateToDisk();
 
+  broadcastEvent('CLAIM_SUBMITTED', { claim: claimRecord, game: currentGame });
+  broadcastEvent('GAME_UPDATED', currentGame);
+
   res.json({
     success: true,
-    message: 'Valid Bingo claim received! Claim window is open for 15 seconds.',
-    winner: winnerRecord,
+    message: 'Bingo claim verified! System automatic verification passed. Game status changed to Checking Winning Cards. Awaiting administrator review.',
+    claim: claimRecord,
+    autoVerification: claimRecord.autoVerification,
     claimWindowDeadline: currentGame.claimWindowDeadline,
   });
 });
@@ -2669,20 +2725,260 @@ app.get('/api/admin/claims', (req: Request, res: Response) => {
   res.json(claimsWithDetails);
 });
 
-// Manual Claim Resolution (Host / Admin override)
-app.post('/api/admin/claims/resolve', (req: Request, res: Response) => {
+// Stage 5 & 6: Approve Claim (Admin reviews & marks claim as approved)
+app.post('/api/admin/claims/approve', (req: Request, res: Response) => {
   const auth = verifyHostAuthorization(req);
   if (!auth.authorized) {
     return res.status(403).json({ error: auth.error });
   }
 
-  const { claimId, action, reason } = req.body;
+  const { claimId } = req.body;
+  const claim = claims.find((c) => c.id === claimId);
+  if (!claim) {
+    return res.status(404).json({ error: 'Claim not found.' });
+  }
+
+  claim.status = 'approved';
+  claim.approvedAt = Date.now();
+  claim.approvedBy = auth.caller?.displayName || 'Host Alice';
+  claim.verifiedAt = Date.now();
+  delete claim.rejectionReason;
+
+  logAuditEvent(
+    auth.caller!.id,
+    auth.caller!.displayName,
+    auth.caller!.role,
+    'CLAIM_APPROVED',
+    'claim',
+    claim.id,
+    `Admin approved claim for ${claim.userName} (${claim.cardId}) - pattern ${WINNING_RULE_LABELS[claim.pattern] || claim.pattern}. Ready to confirm winner.`,
+    'info'
+  );
+
+  saveStateToDisk();
+  broadcastEvent('CLAIM_UPDATED', { claim, game: currentGame });
+  broadcastEvent('GAME_UPDATED', currentGame);
+
+  res.json({ success: true, claim, game: currentGame });
+});
+
+// Stage 5: Reject Claim (Admin rejects claim with recorded reason. Technical errors do NOT auto-block cards unless requested)
+app.post('/api/admin/claims/reject', (req: Request, res: Response) => {
+  const auth = verifyHostAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(403).json({ error: auth.error });
+  }
+
+  const { claimId, reason, blockCard } = req.body;
+  const claim = claims.find((c) => c.id === claimId);
+  if (!claim) {
+    return res.status(404).json({ error: 'Claim not found.' });
+  }
+
+  const rejectionReason = (reason && String(reason).trim()) || 'Claim rejected by administrator review.';
+  claim.status = 'rejected';
+  claim.rejectionReason = rejectionReason;
+  claim.verifiedAt = Date.now();
+
+  const card = cardsMap.get(claim.cardId);
+
+  // Technical errors must not automatically result in card blocking
+  if (blockCard && card) {
+    card.isBlocked = true;
+    card.blockReason = rejectionReason;
+    const blockedRecord: BlockedCard = {
+      cardId: card.id,
+      gameId: currentGame.id,
+      userId: card.userId,
+      reason: rejectionReason,
+      status: 'blocked',
+      blockedAt: Date.now(),
+      blockedBy: auth.caller?.displayName || 'Host Alice',
+    };
+    currentGame.blockedCards = currentGame.blockedCards.filter((b) => b.cardId !== card.id);
+    currentGame.blockedCards.push(blockedRecord);
+    broadcastEvent('CARD_BLOCKED', { blockedCard: blockedRecord, game: currentGame });
+  }
+
+  logAuditEvent(
+    auth.caller!.id,
+    auth.caller!.displayName,
+    auth.caller!.role,
+    'CLAIM_REJECTED',
+    'claim',
+    claim.id,
+    `Admin rejected claim for ${claim.userName} (${claim.cardId}): ${rejectionReason}${blockCard ? ' (Card blocked)' : ' (Card remained active)'}`,
+    'warning'
+  );
+
+  saveStateToDisk();
+  broadcastEvent('CLAIM_UPDATED', { claim, game: currentGame });
+  broadcastEvent('GAME_UPDATED', currentGame);
+
+  res.json({ success: true, claim, game: currentGame });
+});
+
+// Stage 6: Confirm Winner (Admin officially confirms winner after verification)
+app.post('/api/admin/claims/confirm-winner', (req: Request, res: Response) => {
+  const auth = verifyHostAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(403).json({ error: auth.error });
+  }
+
+  const { claimId } = req.body;
   const claim = claims.find((c) => c.id === claimId);
   if (!claim) {
     return res.status(404).json({ error: 'Claim not found.' });
   }
 
   const card = cardsMap.get(claim.cardId);
+  claim.status = 'confirmed';
+  claim.verifiedAt = Date.now();
+  delete claim.rejectionReason;
+
+  if (card) {
+    card.isBlocked = false;
+    delete card.blockReason;
+    currentGame.blockedCards = currentGame.blockedCards.filter((b) => b.cardId !== card.id);
+  }
+
+  // Record official winner and card
+  let winner = currentGame.winners.find((w) => w.claimId === claimId || w.cardId === claim.cardId);
+  if (!winner) {
+    winner = {
+      id: `win-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+      gameId: currentGame.id,
+      claimId: claim.id,
+      cardId: claim.cardId,
+      userId: claim.userId,
+      displayName: claim.userName,
+      winningPattern: WINNING_RULE_LABELS[claim.pattern] || claim.pattern,
+      prizeCategory: claim.prizeCategory,
+      prizeAmount: currentGame.totalPrizePool,
+      confirmedAt: Date.now(),
+      cardMatrix: claim.cardMatrix || card?.matrix,
+      winningCoordinates: claim.autoVerification?.winningCoordinates,
+      calledNumbersAtWin: currentGame.calledNumbers.map((b) => b.number),
+    };
+    currentGame.winners.push(winner);
+  }
+
+  // Recalculate split prize pool among all confirmed winners
+  const winnerCount = Math.max(1, currentGame.winners.length);
+  const splitPrize = parseFloat((currentGame.totalPrizePool / winnerCount).toFixed(2));
+  currentGame.winners.forEach((w) => {
+    w.prizeAmount = splitPrize;
+  });
+
+  // Credit winner user account
+  const winnerUser = users.get(claim.userId);
+  if (winnerUser) {
+    winnerUser.balance += splitPrize;
+    winnerUser.stats.bingosWon += 1;
+  }
+
+  stopAutoCaller();
+
+  currentGame.announcements.unshift(
+    `🏆 Official Winner Confirmed: ${claim.userName} with Card ${claim.cardId} (${WINNING_RULE_LABELS[claim.pattern] || claim.pattern})!`
+  );
+
+  logAuditEvent(
+    auth.caller!.id,
+    auth.caller!.displayName,
+    auth.caller!.role,
+    'WINNER_OFFICIALLY_CONFIRMED',
+    'winner',
+    winner.id,
+    `Admin officially confirmed winner ${claim.userName} (${claim.cardId}). Prize: $${splitPrize}`,
+    'info'
+  );
+
+  saveStateToDisk();
+  broadcastEvent('WINNER_CONFIRMED', winner);
+  broadcastEvent('CLAIM_UPDATED', { claim, game: currentGame });
+  broadcastEvent('GAME_UPDATED', currentGame);
+
+  res.json({ success: true, claim, winner, winners: currentGame.winners, game: currentGame });
+});
+
+// Stage 7: Finalize Game & Display Winners (30-second completion countdown before Next Game)
+app.post('/api/admin/game/finalize-winners', (req: Request, res: Response) => {
+  const auth = verifyHostAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(403).json({ error: auth.error });
+  }
+
+  stopAutoCaller();
+  clearAllGameTimers();
+
+  currentGame.status = 'game_completed';
+  const completionDeadline = Date.now() + 30000;
+  currentGame.completionDeadline = completionDeadline;
+  currentGame.claimWindowActive = false;
+  currentGame.claimWindowDeadline = undefined;
+
+  const winnerSummary = currentGame.winners.length > 0
+    ? currentGame.winners.map((w) => `${w.displayName} (${w.cardId})`).join(', ')
+    : 'No confirmed winners';
+
+  currentGame.announcements.unshift(
+    `🏆 GAME COMPLETED! Winners: ${winnerSummary}. Displaying Game Completed for 30 seconds.`
+  );
+
+  logAuditEvent(
+    auth.caller!.id,
+    auth.caller!.displayName,
+    auth.caller!.role,
+    'GAME_COMPLETED',
+    'game',
+    currentGame.id,
+    `Game finalized with ${currentGame.winners.length} winner(s). 30-second countdown started.`,
+    'info'
+  );
+
+  saveStateToDisk();
+
+  broadcastEvent('GAME_COMPLETED', {
+    winners: currentGame.winners,
+    game: currentGame,
+    completionDeadline,
+  });
+  broadcastEvent('GAME_UPDATED', currentGame);
+
+  if (completionTimer) clearTimeout(completionTimer);
+  completionTimer = setTimeout(() => {
+    completionTimer = null;
+    transitionToNextGame();
+  }, 30000);
+
+  res.json({ success: true, game: currentGame, completionDeadline });
+});
+
+// Legacy resolve claim endpoint (maintained for backwards compatibility)
+app.post('/api/admin/claims/resolve', (req: Request, res: Response) => {
+  const auth = verifyHostAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(403).json({ error: auth.error });
+  }
+
+  const { claimId, action, reason, blockCard } = req.body;
+  const claim = claims.find((c) => c.id === claimId);
+  if (!claim) {
+    return res.status(404).json({ error: 'Claim not found.' });
+  }
+
+  const card = cardsMap.get(claim.cardId);
+
+  if (action === 'approve') {
+    claim.status = 'approved';
+    claim.verifiedAt = Date.now();
+    delete claim.rejectionReason;
+    saveStateToDisk();
+    broadcastEvent('CLAIM_UPDATED', { claim, game: currentGame });
+    broadcastEvent('GAME_UPDATED', currentGame);
+    return res.json({ success: true, claim, game: currentGame });
+  }
 
   if (action === 'confirm') {
     claim.status = 'confirmed';
@@ -2709,22 +3005,28 @@ app.post('/api/admin/claims/resolve', (req: Request, res: Response) => {
         prizeAmount: currentGame.totalPrizePool,
         confirmedAt: Date.now(),
         cardMatrix: card?.matrix,
+        winningCoordinates: claim.autoVerification?.winningCoordinates,
         calledNumbersAtWin: currentGame.calledNumbers.map((b) => b.number),
       };
       currentGame.winners.push(winner);
     }
 
-    // Stop auto-calling, cancel timers, enter game_completed state with 20-second timer
+    const winnerCount = Math.max(1, currentGame.winners.length);
+    const splitPrize = parseFloat((currentGame.totalPrizePool / winnerCount).toFixed(2));
+    currentGame.winners.forEach((w) => {
+      w.prizeAmount = splitPrize;
+    });
+
     stopAutoCaller();
     clearAllGameTimers();
 
     currentGame.status = 'game_completed';
-    const completionDeadline = Date.now() + 20000;
+    const completionDeadline = Date.now() + 30000;
     currentGame.completionDeadline = completionDeadline;
 
     const winnerNames = currentGame.winners.map((w) => `${w.displayName} (${w.cardId})`).join(', ');
     currentGame.announcements.unshift(
-      `🏆 GAME COMPLETED! Winner Confirmed by Host: ${winnerNames}. Transitioning to next game in 20 seconds.`
+      `🏆 GAME COMPLETED! Winner Confirmed by Host: ${winnerNames}. Displaying Game Completed for 30 seconds.`
     );
 
     logAuditEvent(
@@ -2735,7 +3037,7 @@ app.post('/api/admin/claims/resolve', (req: Request, res: Response) => {
       'claim',
       claim.id,
       `Host manually confirmed claim for ${claim.userName} (${claim.cardId}): ${reason || 'Host review approved'}`,
-      'warning'
+      'info'
     );
 
     saveStateToDisk();
@@ -2751,13 +3053,18 @@ app.post('/api/admin/claims/resolve', (req: Request, res: Response) => {
     completionTimer = setTimeout(() => {
       completionTimer = null;
       transitionToNextGame();
-    }, 20000);
+    }, 30000);
 
     return res.json({ success: true, claim, game: currentGame });
   } else {
     claim.status = 'rejected';
     claim.verifiedAt = Date.now();
     claim.rejectionReason = reason || 'Host rejected claim';
+
+    if (blockCard && card) {
+      card.isBlocked = true;
+      card.blockReason = claim.rejectionReason;
+    }
 
     logAuditEvent(
       auth.caller!.id,
@@ -3033,8 +3340,8 @@ async function startServer() {
     app.use(vite.middlewares);
   }
 
-  server.listen(PORT, () => {
-    console.log(`[Bingo Server] Running on http://localhost:${PORT} (${isProd ? (hasDist ? 'production:static' : 'production:vite-fallback') : 'development'})`);
+  server.listen(PORT, HOST, () => {
+    console.log(`[Bingo Server] Running on http://${HOST}:${PORT} (${isProd ? (hasDist ? 'production:static' : 'production:vite-fallback') : 'development'})`);
   });
 }
 

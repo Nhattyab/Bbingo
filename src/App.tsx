@@ -51,6 +51,8 @@ export default function App() {
   // Timers
   const [countdownSeconds, setCountdownSeconds] = useState<number>(0);
   const [claimWindowSeconds, setClaimWindowSeconds] = useState<number>(0);
+  const [completionSeconds, setCompletionSeconds] = useState<number>(0);
+  const [claimFeedback, setClaimFeedback] = useState<{ message: string; type: 'info' | 'success' | 'warning' } | null>(null);
 
   // Card operation states
   const [registeringCardId, setRegisteringCardId] = useState<string | null>(null);
@@ -405,6 +407,13 @@ export default function App() {
       } else {
         setClaimWindowSeconds(0);
       }
+
+      if (game?.status === 'game_completed' && game.completionDeadline) {
+        const remaining = Math.max(0, Math.ceil((game.completionDeadline - Date.now()) / 1000));
+        setCompletionSeconds(remaining);
+      } else {
+        setCompletionSeconds(0);
+      }
     }, 250);
 
     return () => clearInterval(timer);
@@ -723,9 +732,15 @@ export default function App() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        soundManager.playWinFanfare();
         if (data.winner) {
+          soundManager.playWinFanfare();
           setCelebrationWinner(data.winner);
+        } else {
+          setClaimFeedback({
+            message: data.message || 'Bingo claim received! System automatic verification completed. Awaiting administrator review and confirmation.',
+            type: 'success',
+          });
+          setTimeout(() => setClaimFeedback(null), 8000);
         }
       } else {
         // If card was blocked, update its state immediately
@@ -733,12 +748,12 @@ export default function App() {
           setCards((prev) =>
             prev.map((c) =>
               c.id === cardId
-                ? { ...c, isBlocked: true, blockReason: data.error || 'Card is blocked.' }
+                ? { ...c, isBlocked: true, blockReason: data.reason || data.error || 'Card is blocked.' }
                 : c
             )
           );
         }
-        alert(data.error || 'Bingo claim could not be verified.');
+        alert(data.reason || data.error || 'Bingo claim could not be verified.');
       }
     } catch {
       alert('Network failure submitting claim. Please retry.');
@@ -841,6 +856,23 @@ export default function App() {
           3. Live Announcements
           4. My Bingo Cards */}
       <main className="max-w-4xl mx-auto w-full p-3.5 space-y-3.5 flex-1 pb-24">
+        {/* Claim Submission Feedback Toast */}
+        {claimFeedback && (
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-3.5 rounded-2xl shadow-md border border-blue-400 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <p className="text-xs font-bold">{claimFeedback.message}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setClaimFeedback(null)}
+              className="text-white/80 hover:text-white text-xs font-bold px-2 py-0.5 rounded cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* Live Pre-Game Countdown Banner for Players */}
         {countdownSeconds > 0 && (game?.status === 'starting_countdown' || game?.status === 'pre_game_countdown') && (
           <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white p-4 rounded-2xl shadow-lg border border-amber-400 flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300">
@@ -877,10 +909,39 @@ export default function App() {
               <div>
                 <h2 className="font-extrabold text-base tracking-tight">15-Second Winner Claim Window Open!</h2>
                 <p className="text-purple-100 text-xs font-medium mt-0.5">
-                  A player has claimed Bingo! If you have a winning pattern, click Claim Bingo before the window expires!
+                  A player has claimed Bingo! Status is Checking Winning Cards. If you have a winning pattern, claim now!
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* 30-Second Game Completed Banner (Requirement 7 & 8) */}
+        {game?.status === 'game_completed' && (
+          <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 text-white p-4 rounded-2xl shadow-lg border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-3.5">
+              <div className="w-13 h-13 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl font-black tabular-nums shadow-inner border border-white/30 animate-pulse">
+                {completionSeconds > 0 ? completionSeconds : 30}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                  <h2 className="font-extrabold text-base tracking-tight">🏆 Game Completed!</h2>
+                </div>
+                <p className="text-amber-100 text-xs font-medium mt-0.5">
+                  Official winners confirmed! Winning cards displayed below in Championship Game Winners. Transitioning to next game in {completionSeconds > 0 ? completionSeconds : 30}s.
+                </p>
+              </div>
+            </div>
+
+            {game.winners.length > 0 && (
+              <div className="flex items-center gap-2 bg-black/25 px-3 py-1.5 rounded-xl border border-white/20 self-start sm:self-auto">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-200">Winner:</span>
+                <span className="text-xs font-black font-mono text-white">
+                  {game.winners.map((w) => w.displayName).join(', ')}
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -890,6 +951,7 @@ export default function App() {
           calledNumbers={game?.calledNumbers || []}
           latestBall={game?.currentNumber || null}
           countdownSeconds={countdownSeconds}
+          completionSeconds={completionSeconds}
           onNumberClick={(num) => setSelectedBallNumber(num)}
           isHost={isHostOrAdmin}
           onSelectWinnerCard={(winner) => setSelectedWinner(winner)}

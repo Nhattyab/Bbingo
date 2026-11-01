@@ -90,16 +90,29 @@ export interface Winner {
 export interface BingoClaim {
   id: string;
   gameId: string;
+  gameCode?: string;
   cardId: string;
   userId: string;
   userName: string;
   pattern: WinningPattern;
-  status: 'submitted' | 'under_verification' | 'confirmed' | 'rejected';
+  status: 'pending' | 'approved' | 'confirmed' | 'rejected' | 'submitted' | 'under_verification';
   prizeCategory: string;
   prizeAmount: number;
   submittedAt: number;
   verifiedAt?: number;
+  approvedAt?: number;
+  approvedBy?: string;
   rejectionReason?: string;
+  cardMatrix?: (number | 'FREE')[][];
+  cardMarked?: boolean[][];
+  calledNumbersAtClaim?: number[];
+  autoVerification?: {
+    valid: boolean;
+    reason: string;
+    diagnostics?: string;
+    winningPatternName?: string;
+    winningCoordinates?: [number, number][];
+  };
 }
 
 export interface PrizeTier {

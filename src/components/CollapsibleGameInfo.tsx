@@ -23,6 +23,7 @@ interface CollapsibleGameInfoProps {
   calledNumbers: BingoBall[];
   latestBall: BingoBall | null;
   countdownSeconds?: number;
+  completionSeconds?: number;
   onNumberClick?: (number: number) => void;
   isHost?: boolean;
   onSelectWinnerCard: (winner: Winner) => void;
@@ -34,6 +35,7 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
   calledNumbers,
   latestBall,
   countdownSeconds,
+  completionSeconds,
   onNumberClick,
   isHost,
   onSelectWinnerCard,
@@ -41,6 +43,13 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
+
+  // Auto-expand during game_completed so winning cards are immediately visible to players
+  React.useEffect(() => {
+    if (game?.status === 'game_completed' && game.winners && game.winners.length > 0) {
+      setIsExpanded(true);
+    }
+  }, [game?.status, game?.winners?.length]);
 
   if (!game) {
     return (
@@ -76,11 +85,14 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
         return { label: 'Stopped', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
       case 'claim_review':
       case 'checking_winners':
-        return { label: 'Claim Window Open', bg: 'bg-purple-100 text-purple-900 border-purple-300 animate-pulse' };
+        return { label: 'Checking Winning Cards', bg: 'bg-purple-100 text-purple-900 border-purple-300 animate-pulse font-bold' };
       case 'game_completed':
       case 'winner_confirmed':
       case 'completed':
-        return { label: 'Game Completed', bg: 'bg-amber-100 text-amber-900 border-amber-300' };
+        return {
+          label: completionSeconds && completionSeconds > 0 ? `Game Completed (${completionSeconds}s)` : 'Game Completed (30s)',
+          bg: 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold',
+        };
       case 'cancelled':
         return { label: 'Cancelled', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
       default:
