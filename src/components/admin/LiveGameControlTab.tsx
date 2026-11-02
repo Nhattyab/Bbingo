@@ -304,20 +304,20 @@ export function LiveGameControlTab({
           </span>
         </div>
 
-        <div className="space-y-2 overflow-x-auto">
+        <div className="space-y-1.5 sm:space-y-2 w-full min-w-0">
           {columns.map(({ letter, start, end }) => {
             const numbers: number[] = [];
             for (let i = start; i <= end; i++) numbers.push(i);
             const colColor = COLUMN_COLORS[letter];
 
             return (
-              <div key={letter} className="flex items-center gap-2 min-w-[500px]">
+              <div key={letter} className="flex items-center gap-1 sm:gap-2 w-full min-w-0">
                 <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs text-white ${colColor.bg} shadow-xs shrink-0`}
+                  className={`w-5 h-5 sm:w-7 sm:h-7 rounded sm:rounded-lg flex items-center justify-center font-black text-[9px] sm:text-xs text-white ${colColor.bg} shadow-xs shrink-0`}
                 >
                   {letter}
                 </div>
-                <div className="grid grid-cols-15 gap-1.5 flex-1">
+                <div className="grid grid-cols-15 gap-[1.5px] sm:gap-1.5 flex-1 min-w-0">
                   {numbers.map((num) => {
                     const isCalled = calledMap.has(num);
                     const isLatest = game.currentNumber?.number === num;
@@ -331,9 +331,9 @@ export function LiveGameControlTab({
                             onCallNumber(num);
                           }
                         }}
-                        className={`h-8 rounded-lg text-xs font-bold flex items-center justify-center transition-all select-none ${
+                        className={`h-5 sm:h-7.5 rounded-[2px] sm:rounded-lg text-[8px] sm:text-xs font-bold flex items-center justify-center transition-all select-none p-0 min-w-0 ${
                           isLatest
-                            ? 'bg-amber-400 text-slate-950 font-black ring-2 ring-slate-900 scale-105 shadow-sm'
+                            ? 'bg-amber-400 text-slate-950 font-black ring-1 sm:ring-2 ring-slate-900 scale-105 shadow-sm'
                             : isCalled
                             ? 'bg-blue-600 text-white font-bold shadow-xs'
                             : 'bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-700 cursor-pointer'

@@ -19,6 +19,7 @@ import {
   AlertOctagon,
   CheckCircle2,
   LogOut,
+  UserCog,
 } from 'lucide-react';
 import {
   GameSession,
@@ -34,6 +35,7 @@ import {
 import { OverviewTab } from './OverviewTab';
 import { GameSetupTab } from './GameSetupTab';
 import { LiveGameControlTab } from './LiveGameControlTab';
+import { UserManagementTab } from './UserManagementTab';
 import { PlayersCardsTab } from './PlayersCardsTab';
 import { ClaimsMonitoringTab } from './ClaimsMonitoringTab';
 import { WinnersResultsTab } from './WinnersResultsTab';
@@ -125,7 +127,7 @@ export function AdminDashboard({
 
       const [cardsRes, playersRes, claimsRes, logsRes, histRes, settingsRes] = await Promise.all([
         fetch('/api/admin/cards', { headers }),
-        fetch('/api/admin/players', { headers }),
+        fetch('/api/admin/users', { headers }),
         fetch('/api/admin/claims', { headers }),
         fetch('/api/admin/audit-logs', { headers }),
         fetch('/api/admin/history', { headers }),
@@ -182,6 +184,7 @@ export function AdminDashboard({
         },
       });
       if (res.ok) {
+        setActiveTab('setup');
         onRefreshGame();
         fetchAllAdminData();
       }
@@ -595,6 +598,7 @@ export function AdminDashboard({
   ];
 
   const adminNavItems = [
+    { id: 'users', label: 'User Management', icon: UserCog, badge: players.length },
     { id: 'settings', label: 'Settings & Host Permissions', icon: Shield },
     { id: 'audit-logs', label: 'Audit Logs', icon: FileText },
   ];
@@ -690,15 +694,22 @@ export function AdminDashboard({
                     setActiveTab(item.id as AdminNavigationTab);
                     setIsMobileSidebarOpen(false);
                   }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition cursor-pointer ${
                     isActive
                       ? 'bg-blue-600 text-white font-semibold shadow-xs'
                       : 'hover:bg-slate-800 text-slate-300'
                   }`}
                   title={item.label}
                 >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
+                  </div>
+                  {!isSidebarCollapsed && item.badge !== undefined && item.badge > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-slate-700 text-slate-300 font-bold text-[10px]">
+                      {item.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -916,6 +927,14 @@ export function AdminDashboard({
                 onToggleAutoCall={handleToggleAutoCall}
                 onCancelGame={handleCancelGame}
                 onResetGame={handleResetGame}
+              />
+            )}
+
+            {activeTab === 'users' && (
+              <UserManagementTab
+                users={players}
+                currentUser={currentUser}
+                onRefresh={fetchAllAdminData}
               />
             )}
 

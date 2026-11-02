@@ -38,7 +38,7 @@ export function GameSetupTab({
   );
   const [entryPrice, setEntryPrice] = useState(game?.entryPrice?.toString() || '1.00');
   const [prizePool, setPrizePool] = useState(
-    game?.totalPrizePool ? game.totalPrizePool.toString() : '150.00'
+    game?.totalPrizePool !== undefined ? game.totalPrizePool.toString() : ''
   );
   const [interval, setInterval] = useState(game?.autoCallIntervalSeconds?.toString() || '7');
   const [saving, setSaving] = useState(false);
@@ -67,7 +67,9 @@ export function GameSetupTab({
     activeRule !== 'not_set' &&
     title.trim() &&
     gameCode.trim() &&
-    parseFloat(prizePool) > 0
+    prizePool.trim() !== '' &&
+    !isNaN(parseFloat(prizePool)) &&
+    parseFloat(prizePool) >= 0
   );
 
   const isConfigured = Boolean(
@@ -76,7 +78,9 @@ export function GameSetupTab({
       game.activeWinningRule !== 'not_set' &&
       game.title &&
       game.gameCode &&
-      game.totalPrizePool > 0
+      game.totalPrizePool !== undefined &&
+      !isNaN(game.totalPrizePool) &&
+      game.totalPrizePool >= 0
     )
   );
 
@@ -201,8 +205,8 @@ export function GameSetupTab({
     }
 
     const totalNum = parseFloat(prizePool);
-    if (isNaN(totalNum) || totalNum <= 0) {
-      setMessage({ text: 'Total prize pool must be greater than 0.', type: 'error' });
+    if (isNaN(totalNum) || totalNum < 0) {
+      setMessage({ text: 'Total prize pool must be a valid number (0 or greater).', type: 'error' });
       return;
     }
 
@@ -464,25 +468,27 @@ export function GameSetupTab({
               <label className="font-bold text-slate-800 block mb-1">Total Prize Pool ($)</label>
               <input
                 type="number"
-                step="5"
-                min="1"
+                step="any"
+                min="0"
                 disabled={isLocked}
                 value={prizePool}
                 onChange={(e) => setPrizePool(e.target.value)}
+                placeholder="Enter prize pool amount"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:bg-white focus:outline-blue-600 transition disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100"
               />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Entire tournament pool</span>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Entire tournament pool amount (given by host only)</span>
             </div>
 
             <div>
               <label className="font-bold text-slate-800 block mb-1">Entry Price ($)</label>
               <input
                 type="number"
-                step="0.5"
+                step="any"
                 min="0"
                 disabled={isLocked}
                 value={entryPrice}
                 onChange={(e) => setEntryPrice(e.target.value)}
+                placeholder="0.00"
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:bg-white focus:outline-blue-600 transition disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100"
               />
               <span className="text-[10px] text-slate-400 mt-0.5 block">Card purchase cost</span>

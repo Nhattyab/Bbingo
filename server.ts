@@ -845,6 +845,11 @@ function loadPersistedState() {
           registrationsMap.set(key, r);
         });
       }
+      if (data.users && Array.isArray(data.users)) {
+        data.users.forEach((u: User) => {
+          users.set(u.id, u);
+        });
+      }
     }
   } catch (err) {
     console.warn('Could not load persisted db:', err);
@@ -857,6 +862,7 @@ function saveStateToDisk() {
       currentGame,
       cards: Array.from(cardsMap.values()),
       registrations: Array.from(registrationsMap.values()),
+      users: Array.from(users.values()),
       isBingoSuspended,
     };
     fs.writeFileSync(DB_FILE, JSON.stringify(payload));
@@ -1608,8 +1614,8 @@ app.post('/api/game/setup', (req: Request, res: Response) => {
   }
 
   const totalPrizeNum = parseFloat(totalPrizePool);
-  if (isNaN(totalPrizeNum) || totalPrizeNum <= 0) {
-    return res.status(400).json({ error: 'Total prize pool must be greater than 0.' });
+  if (isNaN(totalPrizeNum) || totalPrizeNum < 0) {
+    return res.status(400).json({ error: 'Total prize pool must be a valid number (0 or greater).' });
   }
 
   const individualPrizeNum =
@@ -1701,25 +1707,36 @@ app.post('/api/game/registration/open', (req: Request, res: Response) => {
   }
 
   // If setup payload was provided in request, apply it immediately
-  if (req.body && (req.body.title || req.body.activeWinningRule || req.body.totalPrizePool)) {
+  if (req.body && (req.body.title || req.body.activeWinningRule || req.body.totalPrizePool !== undefined)) {
     const { title, gameCode, activeWinningRule, individualPrize, totalPrizePool, entryPrice, autoCallIntervalSeconds } = req.body;
     if (title) currentGame.title = String(title).trim();
     if (gameCode) currentGame.gameCode = String(gameCode).trim().toUpperCase();
     if (activeWinningRule && activeWinningRule !== 'not_set') currentGame.activeWinningRule = activeWinningRule;
-    if (totalPrizePool !== undefined) currentGame.totalPrizePool = parseFloat(totalPrizePool) || currentGame.totalPrizePool;
-    if (individualPrize !== undefined) currentGame.individualPrize = parseFloat(individualPrize) || currentGame.totalPrizePool;
+    if (totalPrizePool !== undefined) {
+      const parsedPool = parseFloat(totalPrizePool);
+      if (!isNaN(parsedPool) && parsedPool >= 0) {
+        currentGame.totalPrizePool = parsedPool;
+        currentGame.individualPrize = parsedPool;
+      }
+    }
+    if (individualPrize !== undefined) {
+      const parsedInd = parseFloat(individualPrize);
+      if (!isNaN(parsedInd) && parsedInd >= 0) {
+        currentGame.individualPrize = parsedInd;
+      }
+    }
     if (entryPrice !== undefined) currentGame.entryPrice = parseFloat(entryPrice) || 0;
     if (autoCallIntervalSeconds) currentGame.autoCallIntervalSeconds = parseInt(autoCallIntervalSeconds, 10) || 7;
   }
 
-  // Supply safe defaults if somehow still not set
+  // Supply safe defaults if somehow still not set (Never override host's configured prize pool)
   if (!currentGame.title) currentGame.title = '10:20 BINGO Championship';
   if (!currentGame.gameCode) currentGame.gameCode = `10:20-BINGO-${Math.floor(100 + Math.random() * 900)}`;
   if (!currentGame.activeWinningRule || currentGame.activeWinningRule === 'not_set') currentGame.activeWinningRule = 'horizontal_line';
-  if (!currentGame.totalPrizePool || currentGame.totalPrizePool <= 0) {
-    currentGame.totalPrizePool = 150.0;
-    currentGame.individualPrize = 150.0;
+  if (currentGame.totalPrizePool === undefined || isNaN(currentGame.totalPrizePool) || currentGame.totalPrizePool < 0) {
+    currentGame.totalPrizePool = 0;
   }
+  currentGame.individualPrize = currentGame.totalPrizePool;
 
   currentGame.status = 'registration_open';
   currentGame.registrationOpen = true;
@@ -1951,6 +1968,10 @@ app.post('/api/game/resume', (req: Request, res: Response) => {
   const auth = verifyHostAuthorization(req);
   if (!auth.authorized) {
     return res.status(403).json({ error: auth.error });
+  }
+
+  if (isBingoSuspended) {
+    return res.status(503).json({ error: 'Bingo games are currently suspended by the administrator. Start Bingo to resume service.' });
   }
 
   if (currentGame.status !== 'paused' && currentGame.status !== 'stopped') {
@@ -2673,7 +2694,245 @@ app.post('/api/admin/players/update-role', (req: Request, res: Response) => {
   res.json({ success: true, user: targetUser });
 });
 
-// Admin All Cards View with Marked Percentage
+// ============================================================
+// REQUIREMENT: USER MANAGEMENT REST API SUITE
+// ============================================================
+
+// List all users with system stats
+app.get('/api/admin/users', (req: Request, res: Response) => {
+  const auth = verifyHostAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(403).json({ error: auth.error });
+  }
+
+  const userList = Array.from(users.values()).map((u) => {
+    const userCards = Array.from(cardsMap.values()).filter((c) => c.userId === u.id);
+    const registeredCount = userCards.filter((c) => c.isRegistered && !c.isBlocked).length;
+    const blockedCount = userCards.filter((c) => c.isBlocked).length;
+    return {
+      ...u,
+      cardsCount: userCards.length,
+      registeredCardsCount: registeredCount,
+      blockedCardsCount: blockedCount,
+    };
+  });
+
+  res.json(userList);
+});
+
+// Create new user (Admin only)
+app.post('/api/admin/users', (req: Request, res: Response) => {
+  const auth = verifyHostAuthorization(req);
+  if (!auth.authorized || auth.caller?.role !== 'admin') {
+    return res.status(403).json({ error: 'Super Administrator permission required to create user accounts.' });
+  }
+
+  const { username, displayName, email, role, balance } = req.body;
+  if (!username || !String(username).trim()) {
+    return res.status(400).json({ error: 'Username is required.' });
+  }
+  if (!displayName || !String(displayName).trim()) {
+    return res.status(400).json({ error: 'Display name is required.' });
+  }
+
+  const cleanUsername = String(username).trim().toLowerCase();
+  const usernameExists = Array.from(users.values()).some(
+    (u) => u.username.toLowerCase() === cleanUsername
+  );
+  if (usernameExists) {
+    return res.status(400).json({ error: `Username "${username}" is already taken.` });
+  }
+
+  const validRoles: ('player' | 'host' | 'admin')[] = ['player', 'host', 'admin'];
+  const userRole = validRoles.includes(role) ? role : 'player';
+  const initialBalance = parseFloat(balance) >= 0 ? parseFloat(balance) : 100.0;
+  const newUserId = `usr-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+
+  const newUser: User = {
+    id: newUserId,
+    username: cleanUsername,
+    displayName: String(displayName).trim(),
+    email: email && String(email).trim() ? String(email).trim() : `${cleanUsername}@bingo.app`,
+    role: userRole,
+    balance: initialBalance,
+    stats: {
+      gamesPlayed: 0,
+      bingosWon: 0,
+      cardsPlayed: 0,
+    },
+  };
+
+  users.set(newUserId, newUser);
+
+  logAuditEvent(
+    auth.caller.id,
+    auth.caller.displayName,
+    auth.caller.role,
+    'USER_CREATED',
+    'player',
+    newUserId,
+    `Created new user account "${newUser.displayName}" (@${newUser.username}) with role: ${newUser.role}, balance: $${newUser.balance.toFixed(2)}`,
+    'info'
+  );
+
+  saveStateToDisk();
+  res.json({ success: true, user: newUser });
+});
+
+// Update user details & role (Admin only)
+app.post('/api/admin/users/:id/update', (req: Request, res: Response) => {
+  const auth = verifyHostAuthorization(req);
+  if (!auth.authorized || auth.caller?.role !== 'admin') {
+    return res.status(403).json({ error: 'Super Administrator permission required to update user accounts.' });
+  }
+
+  const targetUserId = req.params.id;
+  const targetUser = users.get(targetUserId);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+
+  const { displayName, email, role, balance } = req.body;
+  const oldRole = targetUser.role;
+  const oldBalance = targetUser.balance;
+
+  if (displayName && String(displayName).trim()) {
+    targetUser.displayName = String(displayName).trim();
+  }
+  if (email && String(email).trim()) {
+    targetUser.email = String(email).trim();
+  }
+  if (role && ['player', 'host', 'admin'].includes(role)) {
+    targetUser.role = role;
+  }
+  if (balance !== undefined && !isNaN(parseFloat(balance)) && parseFloat(balance) >= 0) {
+    targetUser.balance = parseFloat(balance);
+  }
+
+  logAuditEvent(
+    auth.caller.id,
+    auth.caller.displayName,
+    auth.caller.role,
+    'USER_UPDATED',
+    'player',
+    targetUserId,
+    `Updated user ${targetUser.displayName} (Role: ${oldRole} -> ${targetUser.role}, Balance: $${oldBalance} -> $${targetUser.balance})`,
+    'warning'
+  );
+
+  saveStateToDisk();
+  res.json({ success: true, user: targetUser });
+});
+
+// Adjust user wallet balance (Add or Deduct funds)
+app.post('/api/admin/users/:id/adjust-balance', (req: Request, res: Response) => {
+  const auth = verifyHostAuthorization(req);
+  if (!auth.authorized || auth.caller?.role !== 'admin') {
+    return res.status(403).json({ error: 'Super Administrator permission required to adjust balances.' });
+  }
+
+  const targetUserId = req.params.id;
+  const targetUser = users.get(targetUserId);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+
+  const { amount, type, reason } = req.body;
+  const numAmount = parseFloat(amount);
+  if (isNaN(numAmount) || numAmount <= 0) {
+    return res.status(400).json({ error: 'Adjustment amount must be a positive number.' });
+  }
+
+  const isDeduct = type === 'deduct';
+  const previousBalance = targetUser.balance;
+  if (isDeduct && targetUser.balance < numAmount) {
+    return res.status(400).json({ error: `Cannot deduct $${numAmount.toFixed(2)}. User balance is only $${targetUser.balance.toFixed(2)}.` });
+  }
+
+  targetUser.balance = parseFloat((targetUser.balance + (isDeduct ? -numAmount : numAmount)).toFixed(2));
+
+  logAuditEvent(
+    auth.caller.id,
+    auth.caller.displayName,
+    auth.caller.role,
+    'BALANCE_ADJUSTED',
+    'player',
+    targetUserId,
+    `${isDeduct ? 'Deducted' : 'Credited'} $${numAmount.toFixed(2)} to ${targetUser.displayName} (Balance: $${previousBalance.toFixed(2)} -> $${targetUser.balance.toFixed(2)})${reason ? ` - Reason: ${reason}` : ''}`,
+    'info'
+  );
+
+  saveStateToDisk();
+  res.json({ success: true, user: targetUser, previousBalance, newBalance: targetUser.balance });
+});
+
+// Reset user stats
+app.post('/api/admin/users/:id/reset-stats', (req: Request, res: Response) => {
+  const auth = verifyHostAuthorization(req);
+  if (!auth.authorized || auth.caller?.role !== 'admin') {
+    return res.status(403).json({ error: 'Super Administrator permission required to reset stats.' });
+  }
+
+  const targetUserId = req.params.id;
+  const targetUser = users.get(targetUserId);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+
+  targetUser.stats = {
+    gamesPlayed: 0,
+    bingosWon: 0,
+    cardsPlayed: 0,
+  };
+
+  logAuditEvent(
+    auth.caller.id,
+    auth.caller.displayName,
+    auth.caller.role,
+    'USER_STATS_RESET',
+    'player',
+    targetUserId,
+    `Reset tournament gameplay stats for user ${targetUser.displayName} (@${targetUser.username})`,
+    'warning'
+  );
+
+  saveStateToDisk();
+  res.json({ success: true, user: targetUser });
+});
+
+// Delete user account
+app.delete('/api/admin/users/:id', (req: Request, res: Response) => {
+  const auth = verifyHostAuthorization(req);
+  if (!auth.authorized || auth.caller?.role !== 'admin') {
+    return res.status(403).json({ error: 'Super Administrator permission required to delete user accounts.' });
+  }
+
+  const targetUserId = req.params.id;
+  if (targetUserId === auth.caller.id) {
+    return res.status(400).json({ error: 'Cannot delete your own active administrator account.' });
+  }
+
+  const targetUser = users.get(targetUserId);
+  if (!targetUser) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+
+  users.delete(targetUserId);
+
+  logAuditEvent(
+    auth.caller.id,
+    auth.caller.displayName,
+    auth.caller.role,
+    'USER_DELETED',
+    'player',
+    targetUserId,
+    `Permanently deleted user account ${targetUser.displayName} (@${targetUser.username}, role: ${targetUser.role})`,
+    'critical'
+  );
+
+  saveStateToDisk();
+  res.json({ success: true, deletedUserId: targetUserId });
+});
 app.get('/api/admin/cards', (req: Request, res: Response) => {
   const auth = verifyHostAuthorization(req);
   if (!auth.authorized) {
@@ -3246,6 +3505,7 @@ app.post('/api/admin/service/stop', (req: Request, res: Response) => {
   clearAllGameTimers();
   stopAutoCaller();
   currentGame.status = 'stopped';
+  currentGame.registrationOpen = false;
   currentGame.autoCallActive = false;
   currentGame.countdownDeadline = undefined;
   currentGame.numberCallingStartTimestamp = undefined;
@@ -3296,20 +3556,28 @@ app.post('/api/admin/service/start', (req: Request, res: Response) => {
 
   // Clean current-game card area for new round (ready for fresh registrations)
   registrationsMap.clear();
+  cardsMap.forEach((c) => {
+    c.isRegistered = false;
+    c.isBlocked = false;
+    delete c.blockReason;
+    delete c.gameId;
+    delete c.gameCode;
+  });
   currentGame.calledNumbers = [];
   currentGame.currentNumber = null;
   currentGame.winners = [];
   currentGame.blockedCards = [];
   currentGame.claimWindowActive = false;
   currentGame.claimWindowDeadline = undefined;
-  currentGame.status = 'registration_open';
-  currentGame.registrationOpen = true;
+  currentGame.status = 'setup';
+  currentGame.registrationOpen = false;
+  currentGame.isRuleLocked = false;
   currentGame.registeredPlayersCount = 0;
   currentGame.countdownDeadline = undefined;
   currentGame.numberCallingStartTimestamp = undefined;
 
-  // Scoped to current fresh game
-  const notification = 'Bingo games have resumed! Registration is now OPEN. Generate and register your cards.';
+  // Scoped to current game in setup mode (registration closed until host opens it)
+  const notification = 'Bingo service restored! The game is now in setup mode. Please configure settings and open registration when ready.';
   currentGame.announcements = [
     notification,
     `Winning Rule: ${WINNING_RULE_LABELS[currentGame.activeWinningRule] || 'Horizontal Line'}`,
@@ -3322,7 +3590,7 @@ app.post('/api/admin/service/start', (req: Request, res: Response) => {
     'BINGO_SERVICE_STARTED',
     'settings',
     'global',
-    'Global Bingo service restored by administrator. Current game card area cleaned for registration.',
+    'Global Bingo service restored by administrator. Game entered setup mode with registration closed.',
     'info'
   );
 
@@ -3339,7 +3607,7 @@ app.post('/api/admin/service/start', (req: Request, res: Response) => {
   res.json({
     success: true,
     isBingoSuspended: false,
-    message: 'Bingo service restored. Card area cleaned and registration is open.',
+    message: 'Bingo service restored. Game is in setup mode (registration closed).',
     game: currentGame,
   });
 });

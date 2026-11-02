@@ -200,6 +200,7 @@ export type AdminNavigationTab =
   | 'overview'
   | 'setup'
   | 'live-control'
+  | 'users'
   | 'players-cards'
   | 'claims'
   | 'winners'
