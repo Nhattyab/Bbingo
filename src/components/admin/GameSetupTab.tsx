@@ -37,9 +37,6 @@ export function GameSetupTab({
       : 'horizontal_line'
   );
   const [entryPrice, setEntryPrice] = useState(game?.entryPrice?.toString() || '1.00');
-  const [individualPrize, setIndividualPrize] = useState(
-    game?.individualPrize ? game.individualPrize.toString() : '150.00'
-  );
   const [prizePool, setPrizePool] = useState(
     game?.totalPrizePool ? game.totalPrizePool.toString() : '150.00'
   );
@@ -56,7 +53,6 @@ export function GameSetupTab({
         setActiveRule(game.activeWinningRule);
       }
       if (game.entryPrice !== undefined) setEntryPrice(game.entryPrice.toString());
-      if (game.individualPrize !== undefined) setIndividualPrize(game.individualPrize.toString());
       if (game.totalPrizePool !== undefined) setPrizePool(game.totalPrizePool.toString());
       if (game.autoCallIntervalSeconds !== undefined) setInterval(game.autoCallIntervalSeconds.toString());
     }
@@ -118,7 +114,7 @@ export function GameSetupTab({
           title: title.trim(),
           gameCode: gameCode.trim().toUpperCase(),
           activeWinningRule: activeRule,
-          individualPrize: parseFloat(individualPrize) || parseFloat(prizePool) || 0,
+          individualPrize: parseFloat(prizePool) || 0,
           totalPrizePool: parseFloat(prizePool) || 0,
           entryPrice: parseFloat(entryPrice) || 0,
           autoCallIntervalSeconds: parseInt(interval, 10) || 7,
@@ -217,7 +213,7 @@ export function GameSetupTab({
         title: title.trim(),
         gameCode: gameCode.trim().toUpperCase(),
         activeWinningRule: activeRule,
-        individualPrize: parseFloat(individualPrize) || totalNum,
+        individualPrize: totalNum,
         totalPrizePool: totalNum,
         entryPrice: parseFloat(entryPrice) || 0,
         autoCallIntervalSeconds: parseInt(interval, 10) || 7,
@@ -348,7 +344,7 @@ export function GameSetupTab({
           )}
         </div>
         <p className="text-xs text-slate-500 mb-5">
-          Configure game title, unique code, winning rule, separate individual prize, and total prize pool before opening registration.
+          Configure game title, unique code, winning rule, entry price, and total prize pool before opening registration.
         </p>
 
         {/* MANDATORY EXACT LOCK MESSAGE DISPLAY */}
@@ -361,7 +357,7 @@ export function GameSetupTab({
                   Game setup is locked because registration has opened.
                 </p>
                 <p className="text-[11px] text-amber-800 mt-0.5">
-                  The game code, winning pattern, individual prize, and total prize pool are locked to guarantee fair competition. Direct modifications are blocked on both frontend and backend.
+                  The game code, winning pattern, entry price, and total prize pool are locked to guarantee fair competition. Direct modifications are blocked on both frontend and backend.
                 </p>
               </div>
             </div>
@@ -462,22 +458,8 @@ export function GameSetupTab({
             </div>
           </div>
 
-          {/* Individual Prize and Total Prize Pool as Separate Fields */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div>
-              <label className="font-bold text-slate-800 block mb-1">Individual Prize ($)</label>
-              <input
-                type="number"
-                step="5"
-                min="0"
-                disabled={isLocked}
-                value={individualPrize}
-                onChange={(e) => setIndividualPrize(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:bg-white focus:outline-blue-600 transition disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100"
-              />
-              <span className="text-[10px] text-slate-400 mt-0.5 block">Per-winner payout</span>
-            </div>
-
+          {/* Total Prize Pool and Entry Price Inputs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
             <div>
               <label className="font-bold text-slate-800 block mb-1">Total Prize Pool ($)</label>
               <input

@@ -567,7 +567,22 @@ export function AdminDashboard({
   const pendingClaimsCount = claims.filter(
     (c) => c.status === 'pending' || c.status === 'approved' || c.status === 'submitted' || c.status === 'under_verification'
   ).length;
-  const registeredCardsCount = cards.filter((c) => c.isRegistered && !c.isBlocked).length;
+
+  // Registered cards strictly linked to the current game's code, including blocked cards
+  const blockedCardIdsInCurrentGame = new Set((game?.blockedCards || []).map((b) => b.cardId));
+  const currentGameRegisteredCards = cards.filter((c) => {
+    const isCurrentGame =
+      (game?.gameCode && c.gameCode === game.gameCode) ||
+      (game?.id && c.gameId === game.id);
+    const isBlocked = blockedCardIdsInCurrentGame.has(c.id) || Boolean(c.isBlocked && isCurrentGame);
+    return isCurrentGame && (c.isRegistered || isBlocked);
+  });
+  const registeredCardsCount = currentGameRegisteredCards.length;
+
+  const currentGameTotalCards = cards.filter(
+    (c) => (game?.gameCode && c.gameCode === game.gameCode) || (game?.id && c.gameId === game.id)
+  );
+  const totalCardsCount = currentGameTotalCards.length > 0 ? currentGameTotalCards.length : cards.length;
 
   const navigationItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -858,7 +873,7 @@ export function AdminDashboard({
                 game={game}
                 auditLogs={auditLogs}
                 registeredCardsCount={registeredCardsCount}
-                totalCardsCount={cards.length}
+                totalCardsCount={totalCardsCount}
                 pendingClaimsCount={pendingClaimsCount}
                 onNavigate={(t) => setActiveTab(t)}
                 onStartGame={handleStartGame}

@@ -72,9 +72,14 @@ export function OverviewTab({
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Game Status</span>
-            <span className="text-base font-black text-slate-900 uppercase mt-0.5 block">
-              {game.status.replace(/_/g, ' ')}
-            </span>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <span className="text-base font-black text-slate-900 uppercase">
+                {game.status.replace(/_/g, ' ')}
+              </span>
+              <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                {game.gameCode}
+              </span>
+            </div>
           </div>
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
             <Radio className="w-5 h-5" />

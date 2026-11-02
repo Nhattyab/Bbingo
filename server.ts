@@ -949,6 +949,13 @@ function transitionToNextGame() {
 
   // Clear active card registrations for previous game
   registrationsMap.clear();
+  cardsMap.forEach((c) => {
+    c.isRegistered = false;
+    c.isBlocked = false;
+    delete c.blockReason;
+    delete c.gameId;
+    delete c.gameCode;
+  });
 
   // Reset to Stage 1: Next Game (Unconfigured)
   const nextGameCode = `10:20-BINGO-${Math.floor(100 + Math.random() * 900)}`;
@@ -1060,12 +1067,17 @@ function stopAutoCaller() {
   currentGame.autoCallActive = false;
 }
 
-// Recalculate registered players count for active game
+// Recalculate registered players count for active game (including blocked cards)
 function updateRegisteredPlayersCount() {
   const uniqueUsers = new Set<string>();
   registrationsMap.forEach((reg) => {
     if (reg.gameId === currentGame.id) {
       uniqueUsers.add(reg.userId);
+    }
+  });
+  currentGame.blockedCards.forEach((b) => {
+    if (b.gameId === currentGame.id) {
+      uniqueUsers.add(b.userId);
     }
   });
   currentGame.registeredPlayersCount = uniqueUsers.size;
@@ -2439,6 +2451,13 @@ app.post('/api/game/reset', (req: Request, res: Response) => {
 
   // Clear active registrations for new game session
   registrationsMap.clear();
+  cardsMap.forEach((c) => {
+    c.isRegistered = false;
+    c.isBlocked = false;
+    delete c.blockReason;
+    delete c.gameId;
+    delete c.gameCode;
+  });
 
   const nextGameCode = gameCode || `10:20-BINGO-${Math.floor(100 + Math.random() * 900)}`;
   const hasConfig = Boolean(activeWinningRule && activeWinningRule !== 'not_set');
@@ -2672,10 +2691,18 @@ app.get('/api/admin/cards', (req: Request, res: Response) => {
     }
     const regKey = getRegKey(currentGame.id, card.id);
     const reg = registrationsMap.get(regKey);
-    const resolvedGameCode = reg?.gameCode || card.gameCode || (card.isRegistered ? currentGame.gameCode : '—');
+    const isBlockedInCurrentGame = currentGame.blockedCards.some((b) => b.cardId === card.id) || Boolean(card.isBlocked && (card.gameId === currentGame.id || card.gameCode === currentGame.gameCode));
+    const isRegisteredForCurrentGame = Boolean(
+      reg ||
+      (card.gameId === currentGame.id && (card.isRegistered || isBlockedInCurrentGame)) ||
+      (card.gameCode === currentGame.gameCode && (card.isRegistered || isBlockedInCurrentGame))
+    );
+    const resolvedGameCode = reg?.gameCode || (isRegisteredForCurrentGame ? currentGame.gameCode : (card.gameCode || '—'));
 
     return {
       ...card,
+      isRegistered: isRegisteredForCurrentGame,
+      isBlocked: isBlockedInCurrentGame,
       gameCode: resolvedGameCode,
       ownerName: owner?.displayName || card.userId,
       ownerUsername: owner?.username || '',
@@ -2686,7 +2713,8 @@ app.get('/api/admin/cards', (req: Request, res: Response) => {
 
   let filtered = allCards;
   if (status === 'registered') {
-    filtered = filtered.filter((c) => c.isRegistered && !c.isBlocked);
+    // Blocked cards were registered first so they are treated as registered cards
+    filtered = filtered.filter((c) => c.isRegistered || c.isBlocked);
   } else if (status === 'unregistered') {
     filtered = filtered.filter((c) => !c.isRegistered && !c.isBlocked);
   } else if (status === 'blocked') {

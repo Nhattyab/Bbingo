@@ -118,47 +118,45 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
       className="bg-white rounded-2xl shadow-xs border border-slate-200/80 transition-all duration-300 overflow-hidden"
     >
       {/* Header bar of the championship card */}
-      <div className="p-3.5 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-xs">
-            <Trophy className="w-5 h-5" />
+      <div className="relative p-2.5 sm:p-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 pr-20 sm:pr-24">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white shrink-0 shadow-2xs">
+            <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-900 text-sm truncate">{game.title}</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-slate-900 text-xs sm:text-sm truncate">{game.title}</span>
               <span
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusInfo.bg}`}
+                className={`text-[9px] sm:text-[10px] font-semibold px-1.5 py-0.2 rounded-full border ${statusInfo.bg}`}
               >
                 {statusInfo.label}
               </span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+            <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 font-medium truncate">
               <span className="font-mono text-indigo-600 font-semibold">{game.gameCode}</span>
               <span>·</span>
               <span className="text-amber-700 font-semibold truncate">{ruleLabel.split('(')[0].trim()}</span>
-              <span>·</span>
-              <span>Pool: ${(game.totalPrizePool ?? 0).toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        {/* Show More / Show Less Button */}
+        {/* Show More / Show Less Button - Top Right Corner & Smaller Size */}
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 transition-colors cursor-pointer"
+          className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 transition-colors cursor-pointer border border-indigo-100/80"
           aria-expanded={isExpanded}
         >
           <span>{isExpanded ? 'Show Less' : 'Show More'}</span>
-          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
       </div>
 
       {/* Expanded Game Details Panel */}
       {isExpanded && (
-        <div className="border-t border-slate-100 p-4 bg-slate-50/50 space-y-4 text-xs animate-in fade-in duration-200">
+        <div className="border-t border-slate-100 p-3 sm:p-4 bg-slate-50/50 space-y-3 sm:space-y-4 text-xs animate-in fade-in duration-200">
           {/* Highlighted Active Winning Rule Box */}
-          <div className="p-3 bg-gradient-to-r from-amber-50 to-indigo-50 rounded-xl border border-amber-200 flex items-start gap-2.5">
+          <div className="p-2.5 sm:p-3 bg-gradient-to-r from-amber-50 to-indigo-50 rounded-xl border border-amber-200 flex items-start gap-2.5">
             <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1">
               <div className="flex items-center justify-between">
@@ -181,34 +179,24 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
             </div>
           </div>
 
-          {/* Key Metric Grid: Separate Individual Prize and Total Prize Fields */}
-          <div className={`grid ${isHost ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3 sm:grid-cols-3'} gap-2.5`}>
+          {/* Key Metric Grid: Entry Price and Total Prize Pool */}
+          <div className={`grid ${isHost ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5`}>
             <div className="bg-white p-2.5 rounded-xl border border-slate-200/70 shadow-2xs">
               <div className="flex items-center gap-1.5 text-slate-500 mb-1">
                 <Ticket className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="font-medium">Entry Price</span>
+                <span className="font-medium text-[11px] sm:text-xs">Entry Price</span>
               </div>
-              <div className="text-sm font-bold text-slate-900 font-mono">
+              <div className="text-xs sm:text-sm font-bold text-slate-900 font-mono">
                 {game.entryPrice > 0 ? `$${game.entryPrice.toFixed(2)}` : 'Free Play'}
               </div>
             </div>
 
             <div className="bg-white p-2.5 rounded-xl border border-slate-200/70 shadow-2xs">
               <div className="flex items-center gap-1.5 text-slate-500 mb-1">
-                <Trophy className="w-3.5 h-3.5 text-blue-500" />
-                <span className="font-medium">Individual Prize</span>
-              </div>
-              <div className="text-sm font-bold text-blue-600 font-mono">
-                ${(game.individualPrize ?? 0).toFixed(2)}
-              </div>
-            </div>
-
-            <div className="bg-white p-2.5 rounded-xl border border-slate-200/70 shadow-2xs">
-              <div className="flex items-center gap-1.5 text-slate-500 mb-1">
                 <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                <span className="font-medium">Total Prize</span>
+                <span className="font-medium text-[11px] sm:text-xs">Prize Pool</span>
               </div>
-              <div className="text-sm font-bold text-amber-600 font-mono">
+              <div className="text-xs sm:text-sm font-bold text-amber-600 font-mono">
                 ${(game.totalPrizePool ?? 0).toFixed(2)}
               </div>
             </div>
@@ -218,10 +206,10 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
               <div className="bg-white p-2.5 rounded-xl border border-slate-200/70 shadow-2xs">
                 <div className="flex items-center gap-1.5 text-slate-500 mb-1">
                   <Users className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="font-medium">Registered</span>
+                  <span className="font-medium text-[11px] sm:text-xs">Registered</span>
                 </div>
-                <div className="text-sm font-bold text-slate-900 font-mono">
-                  {game.registeredPlayersCount} Players
+                <div className="text-xs sm:text-sm font-bold text-slate-900 font-mono">
+                  {game.registeredPlayersCount} Cards
                 </div>
               </div>
             )}

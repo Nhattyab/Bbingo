@@ -909,7 +909,7 @@ export default function App() {
           2. Officially called Bingo numbers
           3. Live Announcements
           4. My Bingo Cards */}
-      <main className="max-w-4xl mx-auto w-full p-3.5 space-y-3.5 flex-1 pb-24">
+      <main className="max-w-4xl mx-auto w-full p-2 sm:p-3.5 space-y-2 sm:space-y-3 flex-1 pb-24">
         {/* Claim Submission Feedback Toast */}
         {claimFeedback && (
           <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-3.5 rounded-2xl shadow-md border border-blue-400 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -1065,6 +1065,7 @@ export default function App() {
           onRegisterAllCards={handleRegisterAllCards}
           onClaimBingo={handleClaimBingo}
           onPromptDeleteCard={(card) => setCardToDelete(card)}
+          onSetGridColumns={(cols) => setUserPreferences((prev) => ({ ...prev, gridColumns: cols }))}
           registeringCardId={registeringCardId}
           claimingCardId={claimingCardId}
           registrationConflictError={registrationConflictError}
