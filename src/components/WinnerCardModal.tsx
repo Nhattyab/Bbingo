@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Trophy, CheckCircle2, Star, Award } from 'lucide-react';
 import { Winner } from '../types/bingo';
-import { COLUMN_COLORS } from '../utils/bingoRules';
+import { COLUMN_COLORS, getDisplayCardNumber } from '../utils/bingoRules';
 
 interface WinnerCardModalProps {
   winner: Winner | null;
@@ -30,7 +30,7 @@ export const WinnerCardModal: React.FC<WinnerCardModalProps> = ({ winner, onClos
             </div>
             <div>
               <h3 className="font-extrabold text-sm sm:text-base">
-                Winning Card: {winner.cardId}
+                Winning Card: #{getDisplayCardNumber(winner.cardId)}
               </h3>
               <p className="text-xs text-amber-100">
                 {winner.displayName} · {winner.winningPattern}

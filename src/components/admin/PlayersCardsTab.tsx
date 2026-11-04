@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Users, CreditCard, Search, ShieldAlert, Eye, ShieldCheck, RefreshCw } from 'lucide-react';
 import { User, BingoCard } from '../../types/bingo';
+import { getDisplayCardNumber } from '../../utils/bingoRules';
 
 interface PlayersCardsTabProps {
   players: (User & { cardsCount?: number; registeredCardsCount?: number; blockedCardsCount?: number })[];
@@ -125,7 +126,7 @@ export function PlayersCardsTab({
                 ) : (
                   filteredCards.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50/80 transition">
-                      <td className="px-4 py-3 font-mono font-bold text-slate-900">{c.id}</td>
+                      <td className="px-4 py-3 font-mono font-bold text-slate-900">#{getDisplayCardNumber(c.id)}</td>
                       <td className="px-4 py-3 font-mono font-semibold text-indigo-600">
                         {c.gameCode || '—'}
                       </td>

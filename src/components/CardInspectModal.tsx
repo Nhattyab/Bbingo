@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, ShieldAlert, Star, Info } from 'lucide-react';
 import { BingoCard, BingoBall } from '../types/bingo';
-import { COLUMN_COLORS } from '../utils/bingoRules';
+import { COLUMN_COLORS, getDisplayCardNumber } from '../utils/bingoRules';
 
 interface CardInspectModalProps {
   card: BingoCard | null;
@@ -31,7 +31,7 @@ export const CardInspectModal: React.FC<CardInspectModalProps> = ({
               <ShieldAlert className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm">Card Inspector: {card.id}</h3>
+              <h3 className="font-bold text-sm">Card Inspector: #{getDisplayCardNumber(card.id)}</h3>
               <p className="text-[11px] text-slate-400">Card details & 5x5 matrix</p>
             </div>
           </div>

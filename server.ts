@@ -272,13 +272,29 @@ function getRandomInts(min: number, max: number, count: number): number[] {
   return pool.slice(0, count);
 }
 
+export function generateGameCode(): string {
+  const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let rand = '';
+  for (let i = 0; i < 5; i++) {
+    rand += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `bg00${rand}`;
+}
+
+export function getDisplayCardNumber(cardId?: string): string {
+  if (!cardId) return '';
+  const digits = cardId.replace(/[^0-9]/g, '');
+  return digits || cardId;
+}
+
 export function generateBingoCard(
   gameId: string,
   userId: string,
   cardIndex: number,
   isRegistered: boolean = false
 ): BingoCard {
-  const cardId = `CARD-${Math.floor(1000 + Math.random() * 9000)}-${cardIndex}`;
+  // Purely numeric card ID (no 'CARD' prefix)
+  const cardId = Math.floor(100000 + Math.random() * 900000).toString();
 
   const colB = getRandomInts(1, 15, 5);
   const colI = getRandomInts(16, 30, 5);
@@ -584,8 +600,8 @@ const users: Map<string, User> = new Map([
 // Single Shared Active Game across entire application (Initial Stage 1: Next Game unconfigured)
 let currentGame: GameSession = {
   id: 'game-1020-shared',
-  gameCode: '10:20-BINGO-NEXT',
-  title: '10:20 BINGO Championship',
+  gameCode: generateGameCode(),
+  title: '75-Ball Bingo',
   gameType: '75-Ball Classic',
   status: 'next_game',
   activeWinningRule: 'not_set',
@@ -600,7 +616,7 @@ let currentGame: GameSession = {
   hostName: 'Host Alice',
   hostId: 'usr-host-1',
   announcements: [
-    'Welcome to 10:20 BINGO Championship! The next game is pending configuration.',
+    'registration closed',
   ],
   calledNumbers: [],
   currentNumber: null,
@@ -827,6 +843,21 @@ function loadPersistedState() {
         if (currentGame.individualPrize === undefined) {
           currentGame.individualPrize = currentGame.totalPrizePool || 0;
         }
+        if (!currentGame.gameCode || !currentGame.gameCode.startsWith('bg00')) {
+          currentGame.gameCode = generateGameCode();
+        }
+        currentGame.title = '75-Ball Bingo';
+        if (currentGame.status === 'registration_open') {
+          currentGame.announcements = ['registration opened'];
+        } else if (currentGame.status === 'registration_closed') {
+          currentGame.announcements = ['registration closed'];
+        } else if (currentGame.status === 'starting_countdown' || currentGame.status === 'running') {
+          currentGame.announcements = ['Game is starting ..'];
+        } else if (currentGame.status === 'game_completed') {
+          currentGame.announcements = ['game completed, ready for the next game'];
+        } else {
+          currentGame.announcements = ['registration closed'];
+        }
       }
       if (data.isBingoSuspended !== undefined) {
         isBingoSuspended = Boolean(data.isBingoSuspended);
@@ -964,11 +995,11 @@ function transitionToNextGame() {
   });
 
   // Reset to Stage 1: Next Game (Unconfigured)
-  const nextGameCode = `10:20-BINGO-${Math.floor(100 + Math.random() * 900)}`;
+  const nextGameCode = generateGameCode();
   currentGame = {
     id: `game-${Date.now()}`,
     gameCode: nextGameCode,
-    title: '10:20 BINGO Championship',
+    title: '75-Ball Bingo',
     gameType: '75-Ball Classic',
     status: 'next_game',
     activeWinningRule: 'not_set',
@@ -983,7 +1014,7 @@ function transitionToNextGame() {
     hostName: 'Host Alice',
     hostId: 'usr-host-1',
     announcements: [
-      'Game completed! The next game is ready for host configuration.',
+      'registration closed',
     ],
     calledNumbers: [],
     currentNumber: null,
@@ -1021,7 +1052,7 @@ function callNextAuthoritativeNumber(): BingoBall | null {
     currentGame.status = 'game_completed';
     const completionDeadline = Date.now() + 30000;
     currentGame.completionDeadline = completionDeadline;
-    currentGame.announcements.unshift('All 75 numbers called! Game completed with no winner. Transitioning to next game in 30 seconds.');
+    currentGame.announcements = ['game completed, ready for the next game'];
     stopAutoCaller();
     broadcastEvent('GAME_COMPLETED', { game: currentGame, completionDeadline });
     broadcastEvent('GAME_UPDATED', currentGame);
@@ -1730,8 +1761,8 @@ app.post('/api/game/registration/open', (req: Request, res: Response) => {
   }
 
   // Supply safe defaults if somehow still not set (Never override host's configured prize pool)
-  if (!currentGame.title) currentGame.title = '10:20 BINGO Championship';
-  if (!currentGame.gameCode) currentGame.gameCode = `10:20-BINGO-${Math.floor(100 + Math.random() * 900)}`;
+  if (!currentGame.title) currentGame.title = '75-Ball Bingo';
+  if (!currentGame.gameCode) currentGame.gameCode = generateGameCode();
   if (!currentGame.activeWinningRule || currentGame.activeWinningRule === 'not_set') currentGame.activeWinningRule = 'horizontal_line';
   if (currentGame.totalPrizePool === undefined || isNaN(currentGame.totalPrizePool) || currentGame.totalPrizePool < 0) {
     currentGame.totalPrizePool = 0;
@@ -1742,9 +1773,7 @@ app.post('/api/game/registration/open', (req: Request, res: Response) => {
   currentGame.registrationOpen = true;
   currentGame.isRuleLocked = true; // Lock setup modifications once registration opens!
 
-  currentGame.announcements.unshift(
-    `Registration is now OPEN for ${currentGame.title} (${currentGame.gameCode})! Generate and register your cards.`
-  );
+  currentGame.announcements = ['registration opened'];
 
   logAuditEvent(
     auth.caller!.id,
@@ -1772,9 +1801,7 @@ app.post('/api/game/registration/close', (req: Request, res: Response) => {
   currentGame.status = 'registration_closed';
   currentGame.registrationOpen = false;
 
-  currentGame.announcements.unshift(
-    `Registration is now CLOSED for ${currentGame.title} (${currentGame.gameCode}). Ready for game start!`
-  );
+  currentGame.announcements = ['registration closed'];
 
   logAuditEvent(
     auth.caller!.id,
@@ -1871,7 +1898,7 @@ app.post('/api/game/start', (req: Request, res: Response) => {
   const countdownDeadline = Date.now() + 15000;
   currentGame.countdownDeadline = countdownDeadline;
 
-  currentGame.announcements.unshift('The game is starting in 15 seconds, get ready!');
+  currentGame.announcements = ['Game is starting ..'];
 
   logAuditEvent(
     auth.caller!.id,
@@ -1900,7 +1927,7 @@ app.post('/api/game/start', (req: Request, res: Response) => {
     currentGame.startTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     currentGame.numberCallingStartTimestamp = Date.now() + 5000;
 
-    currentGame.announcements.unshift('Game started! Automatic number calling begins in 5 seconds.');
+    currentGame.announcements = ['Game is starting ..'];
 
     broadcastEvent('GAME_STARTED', {
       numberCallingStartTimestamp: currentGame.numberCallingStartTimestamp,
@@ -2335,9 +2362,9 @@ app.post('/api/game/claim', (req: Request, res: Response) => {
     const claimDeadline = Date.now() + 15000;
     currentGame.claimWindowDeadline = claimDeadline;
 
-    currentGame.announcements.unshift(
-      `Bingo claim verified for ${claimRecord.userName} (Card ${cardId})! Checking Winning Cards. 15-second claim window is now OPEN for other players to submit claims.`
-    );
+    currentGame.announcements = [
+      'Bingo claimed, bingo claim window will be closed in 15 seconds'
+    ];
 
     broadcastEvent('CLAIM_WINDOW_STARTED', {
       claimWindowDeadline: claimDeadline,
@@ -2350,17 +2377,14 @@ app.post('/api/game/claim', (req: Request, res: Response) => {
       claimWindowTimer = null;
       currentGame.claimWindowActive = false;
       currentGame.claimWindowDeadline = undefined;
-      currentGame.announcements.unshift(
-        '15-second claim window has closed. Host is reviewing all pending claims in Claims & Monitoring.'
-      );
       saveStateToDisk();
       broadcastEvent('CLAIM_WINDOW_ENDED', { game: currentGame });
       broadcastEvent('GAME_UPDATED', currentGame);
     }, 15000);
   } else {
-    currentGame.announcements.unshift(
-      `Additional valid Bingo claim received from ${claimRecord.userName} (Card ${cardId}) within the 15-second claim window.`
-    );
+    currentGame.announcements = [
+      'Bingo claimed, bingo claim window will be closed in 15 seconds'
+    ];
   }
 
   logAuditEvent(
@@ -2438,7 +2462,6 @@ app.post('/api/game/unblock-card', (req: Request, res: Response) => {
   }
 
   currentGame.blockedCards = currentGame.blockedCards.filter((b) => b.cardId !== cardId);
-  currentGame.announcements.unshift(`Card ${cardId} was unblocked.`);
 
   saveStateToDisk();
 
@@ -2480,13 +2503,13 @@ app.post('/api/game/reset', (req: Request, res: Response) => {
     delete c.gameCode;
   });
 
-  const nextGameCode = gameCode || `10:20-BINGO-${Math.floor(100 + Math.random() * 900)}`;
+  const nextGameCode = gameCode || generateGameCode();
   const hasConfig = Boolean(activeWinningRule && activeWinningRule !== 'not_set');
 
   currentGame = {
     id: `game-${Date.now()}`,
     gameCode: nextGameCode,
-    title: title || '10:20 BINGO Championship',
+    title: '75-Ball Bingo',
     gameType: '75-Ball Classic',
     status: hasConfig ? 'setup' : 'next_game',
     activeWinningRule: activeWinningRule || 'not_set',
@@ -3168,10 +3191,6 @@ app.post('/api/admin/claims/confirm-winner', (req: Request, res: Response) => {
 
   stopAutoCaller();
 
-  currentGame.announcements.unshift(
-    `🏆 Official Winner Confirmed: ${claim.userName} with Card ${claim.cardId} (${WINNING_RULE_LABELS[claim.pattern] || claim.pattern})!`
-  );
-
   logAuditEvent(
     auth.caller!.id,
     auth.caller!.displayName,
@@ -3207,13 +3226,9 @@ app.post('/api/admin/game/finalize-winners', (req: Request, res: Response) => {
   currentGame.claimWindowActive = false;
   currentGame.claimWindowDeadline = undefined;
 
-  const winnerSummary = currentGame.winners.length > 0
-    ? currentGame.winners.map((w) => `${w.displayName} (${w.cardId})`).join(', ')
-    : 'No confirmed winners';
-
-  currentGame.announcements.unshift(
-    `🏆 GAME COMPLETED! Winners: ${winnerSummary}. Displaying Game Completed for 30 seconds.`
-  );
+  currentGame.announcements = [
+    'game completed, ready for the next game'
+  ];
 
   logAuditEvent(
     auth.caller!.id,
@@ -3576,12 +3591,7 @@ app.post('/api/admin/service/start', (req: Request, res: Response) => {
   currentGame.countdownDeadline = undefined;
   currentGame.numberCallingStartTimestamp = undefined;
 
-  // Scoped to current game in setup mode (registration closed until host opens it)
-  const notification = 'Bingo service restored! The game is now in setup mode. Please configure settings and open registration when ready.';
-  currentGame.announcements = [
-    notification,
-    `Winning Rule: ${WINNING_RULE_LABELS[currentGame.activeWinningRule] || 'Horizontal Line'}`,
-  ];
+  currentGame.announcements = ['registration closed'];
 
   logAuditEvent(
     auth.caller!.id,

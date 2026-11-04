@@ -12,7 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { BingoClaim, GameSession } from '../../types/bingo';
-import { WINNING_RULE_LABELS } from '../../utils/bingoRules';
+import { WINNING_RULE_LABELS, getDisplayCardNumber } from '../../utils/bingoRules';
 
 interface ClaimsMonitoringTabProps {
   claims: (BingoClaim & { cardMatrix?: any; cardMarked?: any; isCardBlocked?: boolean })[];
@@ -284,7 +284,7 @@ export function ClaimsMonitoringTab({
                       {/* Card ID */}
                       <td className="px-4 py-3">
                         <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
-                          {cl.cardId}
+                          #{getDisplayCardNumber(cl.cardId)}
                         </span>
                       </td>
 

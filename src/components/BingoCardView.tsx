@@ -11,7 +11,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { BingoCard, BingoColumn, GameStatus, BlockedCard } from '../types/bingo';
-import { COLUMN_COLORS } from '../utils/bingoRules';
+import { COLUMN_COLORS, getDisplayCardNumber } from '../utils/bingoRules';
 
 interface BingoCardViewProps {
   cards: BingoCard[];
@@ -235,10 +235,15 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                 <div className="flex items-center gap-1 min-w-0">
                   <span
                     className={`font-mono font-bold text-slate-900 ${
-                      isVeryCompact ? 'text-[9px] px-1 py-0.2' : isCompact ? 'text-[10px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'
+                      isVeryCompact
+                        ? 'text-[8px] sm:text-[9px] px-1 py-0.2 tracking-tight max-w-[50px] truncate'
+                        : isCompact
+                        ? 'text-[10px] px-1.5 py-0.5'
+                        : 'text-xs px-2 py-0.5'
                     } bg-white rounded-md border border-slate-200`}
+                    title={`Card #${getDisplayCardNumber(card.id)}`}
                   >
-                    {card.id}
+                    #{getDisplayCardNumber(card.id)}
                   </span>
                   {!isVeryCompact && (
                     <span className="text-[9px] sm:text-[10px] text-slate-500 font-medium">
@@ -252,28 +257,28 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                   {isCardBlocked ? (
                     <span
                       className={`flex items-center gap-0.5 ${
-                        isVeryCompact ? 'px-1 py-0.2 text-[8px]' : 'px-1.5 py-0.5 text-[9px] sm:text-[10px]'
+                        isVeryCompact ? 'px-1 py-0.2 text-[7px] sm:text-[8px]' : 'px-1.5 py-0.5 text-[9px] sm:text-[10px]'
                       } rounded font-bold bg-rose-100 text-rose-800 border border-rose-200`}
                     >
                       <ShieldAlert className="w-2.5 h-2.5 text-rose-600" />
-                      <span>Blocked</span>
+                      <span>{isVeryCompact ? 'Blk' : 'Blocked'}</span>
                     </span>
                   ) : card.isRegistered ? (
                     <span
                       className={`flex items-center gap-0.5 ${
-                        isVeryCompact ? 'px-1 py-0.2 text-[8px]' : 'px-1.5 py-0.5 text-[9px] sm:text-[10px]'
+                        isVeryCompact ? 'px-1 py-0.2 text-[7px] sm:text-[8px]' : 'px-1.5 py-0.5 text-[9px] sm:text-[10px]'
                       } rounded font-bold bg-emerald-100 text-emerald-800 border border-emerald-200`}
                     >
                       <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
-                      <span>Registered</span>
+                      <span>{isVeryCompact ? 'Reg' : 'Registered'}</span>
                     </span>
                   ) : (
                     <span
                       className={`${
-                        isVeryCompact ? 'px-1 py-0.2 text-[8px]' : 'px-1.5 py-0.5 text-[9px] sm:text-[10px]'
+                        isVeryCompact ? 'px-1 py-0.2 text-[7px] sm:text-[8px]' : 'px-1.5 py-0.5 text-[9px] sm:text-[10px]'
                       } rounded font-bold bg-amber-100 text-amber-900 border border-amber-200`}
                     >
-                      {isVeryCompact ? 'Unreg' : 'Not Registered'}
+                      {isVeryCompact ? 'New' : 'Not Registered'}
                     </span>
                   )}
 
@@ -282,12 +287,12 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                     type="button"
                     onClick={() => onPromptDeleteCard(card)}
                     className={`${
-                      isVeryCompact ? 'w-4.5 h-4.5' : 'w-5.5 h-5.5'
+                      isVeryCompact ? 'w-4 h-4 text-[10px]' : 'w-5.5 h-5.5'
                     } rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer border border-slate-200 hover:border-rose-300`}
-                    title={`Delete card ${card.id}`}
-                    aria-label={`Delete card ${card.id}`}
+                    title={`Delete card #${getDisplayCardNumber(card.id)}`}
+                    aria-label={`Delete card #${getDisplayCardNumber(card.id)}`}
                   >
-                    <X className="w-3 h-3 stroke-[2.5]" />
+                    <X className={isVeryCompact ? 'w-2.5 h-2.5 stroke-[2.5]' : 'w-3 h-3 stroke-[2.5]'} />
                   </button>
                 </div>
               </div>

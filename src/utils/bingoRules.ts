@@ -16,6 +16,15 @@ export const COLUMN_COLORS: Record<BingoColumn, { bg: string; text: string; bord
   O: { bg: 'bg-amber-500', text: 'text-amber-500', border: 'border-amber-500', hex: '#d97706' },
 };
 
+export const WINNING_RULE_NAMES: Record<WinningPattern, string> = {
+  not_set: 'Not Set',
+  horizontal_line: 'Horizontal Line',
+  vertical_line: 'Vertical Line',
+  diagonal_line: 'Diagonal Line',
+  four_corners: 'Four Corners',
+  blackout: 'Full Card / Blackout',
+};
+
 export const WINNING_RULE_LABELS: Record<WinningPattern, string> = {
   not_set: 'Not Set',
   horizontal_line: 'Horizontal Line (Any complete row)',
@@ -24,6 +33,27 @@ export const WINNING_RULE_LABELS: Record<WinningPattern, string> = {
   four_corners: 'Four Corners (All 4 outer corners)',
   blackout: 'Full Card / Blackout (All 25 squares)',
 };
+
+/**
+ * Generates an authoritative game code starting with 'bg00' followed by 5 random alphanumeric characters
+ */
+export function generateGameCode(): string {
+  const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let rand = '';
+  for (let i = 0; i < 5; i++) {
+    rand += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `bg00${rand}`;
+}
+
+/**
+ * Returns purely numeric card number by stripping any letters like 'CARD' or 'CARD-'
+ */
+export function getDisplayCardNumber(cardId?: string): string {
+  if (!cardId) return '';
+  const digits = cardId.replace(/[^0-9]/g, '');
+  return digits || cardId;
+}
 
 export function getLetterForNumber(num: number): BingoColumn {
   if (num >= 1 && num <= 15) return 'B';
@@ -61,7 +91,8 @@ export function generateBingoCard(
   cardIndex: number,
   isRegistered: boolean = false
 ): BingoCard {
-  const cardId = `CARD-${Math.floor(1000 + Math.random() * 9000)}-${cardIndex}`;
+  // Purely numeric card numbers (no letters like CARD)
+  const cardId = Math.floor(100000 + Math.random() * 900000).toString();
 
   const colB = getRandomInts(1, 15, 5);
   const colI = getRandomInts(16, 30, 5);

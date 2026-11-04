@@ -927,75 +927,20 @@ export default function App() {
           </div>
         )}
 
-        {/* Live Pre-Game Countdown Banner for Players */}
-        {countdownSeconds > 0 && (game?.status === 'starting_countdown' || game?.status === 'pre_game_countdown') && (
-          <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white p-4 rounded-2xl shadow-lg border border-amber-400 flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="flex items-center gap-3.5">
-              <div className="w-13 h-13 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl font-black tabular-nums shadow-inner border border-white/30 animate-pulse">
-                {countdownSeconds}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
-                  <h2 className="font-extrabold text-base tracking-tight">The Game is Starting in {countdownSeconds}s!</h2>
-                </div>
-                <p className="text-amber-100 text-xs font-medium mt-0.5">
-                  Get ready! Automatic number calling will begin. Keep your cards ready.
-                </p>
-              </div>
-            </div>
-            <div className="hidden sm:flex flex-col items-end">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-200">Winning Rule</span>
-              <span className="text-xs font-extrabold font-mono text-white bg-white/10 px-2.5 py-1 rounded-lg border border-white/20 mt-1">
-                {WINNING_RULE_LABELS[game?.activeWinningRule || 'horizontal_line'] || 'Horizontal Line'}
-              </span>
-            </div>
-          </div>
-        )}
-
         {/* 15-Second Winner Claim Window Banner for Players */}
         {claimWindowSeconds > 0 && game?.claimWindowActive && (
-          <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-4 rounded-2xl shadow-lg border border-purple-400 flex items-center justify-between animate-pulse">
-            <div className="flex items-center gap-3.5">
-              <div className="w-13 h-13 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl font-black tabular-nums shadow-inner border border-white/30">
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-3.5 rounded-2xl shadow-lg border border-purple-400 flex items-center justify-between animate-pulse">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center text-2xl font-black tabular-nums shadow-inner border border-white/30">
                 {claimWindowSeconds}
               </div>
               <div>
-                <h2 className="font-extrabold text-base tracking-tight">15-Second Winner Claim Window Open!</h2>
-                <p className="text-purple-100 text-xs font-medium mt-0.5">
-                  A player has claimed Bingo! Status is Checking Winning Cards. If you have a winning pattern, claim now!
+                <h2 className="font-extrabold text-sm tracking-tight">15-Second Winner Claim Window Open!</h2>
+                <p className="text-purple-100 text-[11px] font-medium">
+                  A player has claimed Bingo! If you have a winning pattern, claim now!
                 </p>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* 30-Second Game Completed Banner (Requirement 7 & 8) */}
-        {game?.status === 'game_completed' && (
-          <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 text-white p-4 rounded-2xl shadow-lg border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="flex items-center gap-3.5">
-              <div className="w-13 h-13 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl font-black tabular-nums shadow-inner border border-white/30 animate-pulse">
-                {completionSeconds > 0 ? completionSeconds : 30}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
-                  <h2 className="font-extrabold text-base tracking-tight">🏆 Game Completed!</h2>
-                </div>
-                <p className="text-amber-100 text-xs font-medium mt-0.5">
-                  Official winners confirmed! Winning cards displayed below in Championship Game Winners. Transitioning to next game in {completionSeconds > 0 ? completionSeconds : 30}s.
-                </p>
-              </div>
-            </div>
-
-            {game.winners.length > 0 && (
-              <div className="flex items-center gap-2 bg-black/25 px-3 py-1.5 rounded-xl border border-white/20 self-start sm:self-auto">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-200">Winner:</span>
-                <span className="text-xs font-black font-mono text-white">
-                  {game.winners.map((w) => w.displayName).join(', ')}
-                </span>
-              </div>
-            )}
           </div>
         )}
 
@@ -1047,6 +992,8 @@ export default function App() {
         <LiveAnnouncements
           announcements={game?.announcements || []}
           isServiceSuspended={game?.isServiceSuspended}
+          game={game}
+          claimWindowSeconds={claimWindowSeconds}
         />
 
         {/* 4. My Bingo Cards (with top-right 'X' delete button, zero auto-highlighting, manual marking) */}

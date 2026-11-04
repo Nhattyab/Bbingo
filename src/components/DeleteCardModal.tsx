@@ -1,6 +1,7 @@
 import React from 'react';
 import { Trash2, AlertTriangle, X } from 'lucide-react';
 import { BingoCard } from '../types/bingo';
+import { getDisplayCardNumber } from '../utils/bingoRules';
 
 interface DeleteCardModalProps {
   card: BingoCard | null;
@@ -57,7 +58,7 @@ export const DeleteCardModal: React.FC<DeleteCardModalProps> = ({
           <div className="text-center p-3 bg-slate-50 rounded-2xl border border-slate-200">
             <span className="text-[11px] text-slate-500 font-medium block mb-1">Target Card ID:</span>
             <span className="font-mono text-base font-extrabold text-slate-900 bg-white px-3 py-1 rounded-xl border border-slate-200 inline-block shadow-2xs">
-              {card.id}
+              #{getDisplayCardNumber(card.id)}
             </span>
           </div>
 

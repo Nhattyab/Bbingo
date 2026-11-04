@@ -65,7 +65,6 @@ export function GameSetupTab({
 
   const isFormConfigured = Boolean(
     activeRule !== 'not_set' &&
-    title.trim() &&
     gameCode.trim() &&
     prizePool.trim() !== '' &&
     !isNaN(parseFloat(prizePool)) &&
@@ -191,10 +190,6 @@ export function GameSetupTab({
       return;
     }
 
-    if (!title.trim()) {
-      setMessage({ text: 'Game title is required.', type: 'error' });
-      return;
-    }
     if (!gameCode.trim()) {
       setMessage({ text: 'Unique game code is required.', type: 'error' });
       return;
@@ -214,8 +209,8 @@ export function GameSetupTab({
     setMessage(null);
     try {
       await onSaveSetup({
-        title: title.trim(),
-        gameCode: gameCode.trim().toUpperCase(),
+        title: '75-Ball Bingo',
+        gameCode: gameCode.trim().toLowerCase(),
         activeWinningRule: activeRule,
         individualPrize: totalNum,
         totalPrizePool: totalNum,
@@ -402,30 +397,16 @@ export function GameSetupTab({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="font-bold text-slate-800 block mb-1">Championship Title</label>
-              <input
-                type="text"
-                disabled={isLocked}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:outline-blue-600 transition disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100"
-                placeholder="e.g. 10:20 BINGO Championship"
-              />
-            </div>
-
-            <div>
-              <label className="font-bold text-slate-800 block mb-1">Unique Game Code</label>
-              <input
-                type="text"
-                disabled={isLocked}
-                value={gameCode}
-                onChange={(e) => setGameCode(e.target.value.toUpperCase())}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:bg-white focus:outline-blue-600 transition disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100"
-                placeholder="e.g. 10:20-BINGO-442"
-              />
-            </div>
+          <div>
+            <label className="font-bold text-slate-800 block mb-1">Unique Game Code</label>
+            <input
+              type="text"
+              disabled={isLocked}
+              value={gameCode}
+              onChange={(e) => setGameCode(e.target.value.toLowerCase())}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:bg-white focus:outline-blue-600 transition disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100"
+              placeholder="e.g. bg009a2b7"
+            />
           </div>
 
           <div>

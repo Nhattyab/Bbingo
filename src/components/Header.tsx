@@ -65,9 +65,11 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
               )}
             </div>
-            <span className="text-[11px] text-blue-200 font-medium truncate">
-              {game?.title || '75-Ball Classic Game'}
-            </span>
+            {game?.gameCode && (
+              <span className="text-[11px] text-blue-200 font-mono font-bold tracking-wide truncate">
+                {game.gameCode}
+              </span>
+            )}
           </div>
         </div>
 

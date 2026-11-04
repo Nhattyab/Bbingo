@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Archive, RotateCcw, Sparkles } from 'lucide-react';
 import { BingoCard } from '../types/bingo';
+import { getDisplayCardNumber } from '../utils/bingoRules';
 
 interface SavedCardsModalProps {
   isOpen: boolean;
@@ -86,7 +87,7 @@ export const SavedCardsModal: React.FC<SavedCardsModalProps> = ({
                 className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between gap-3"
               >
                 <div>
-                  <span className="font-mono font-bold text-xs text-slate-900 block">{card.id}</span>
+                  <span className="font-mono font-bold text-xs text-slate-900 block">#{getDisplayCardNumber(card.id)}</span>
                   <span className="text-[10px] text-slate-500 font-medium">Created: {card.cardDateString}</span>
                 </div>
                 <button

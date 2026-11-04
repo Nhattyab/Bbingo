@@ -127,7 +127,7 @@ export function OverviewTab({
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="font-bold text-sm text-slate-900">{game.title}</h3>
+            <h3 className="font-bold text-sm text-slate-900 font-mono">{game.gameCode}</h3>
             <p className="text-xs text-slate-500 mt-0.5">
               Rule:{' '}
               <span className="font-semibold text-slate-800">
