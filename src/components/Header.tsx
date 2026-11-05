@@ -41,33 +41,26 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-4xl mx-auto px-3.5 py-2.5 flex items-center justify-between gap-2">
         {/* Left: App Title and Live Indicator */}
         <div className="flex items-center gap-2 min-w-0">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-lg md:text-xl font-extrabold tracking-tight truncate drop-shadow-xs font-sans uppercase">
-                {appName || '10:20 BINGO'}
-              </h1>
-              {(game?.status === 'pre_game_countdown' || game?.status === 'starting_countdown') && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black bg-amber-400 text-amber-950 uppercase tracking-wider animate-pulse shadow-xs">
-                  <Clock className="w-3 h-3" />
-                  {countdownSeconds && countdownSeconds > 0 ? `Starts in ${countdownSeconds}s` : 'Starting Soon'}
-                </span>
-              )}
-              {game?.claimWindowActive && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black bg-purple-300 text-purple-950 uppercase tracking-wider animate-pulse shadow-xs">
-                  <Sparkles className="w-3 h-3" />
-                  {claimWindowSeconds && claimWindowSeconds > 0 ? `Claim: ${claimWindowSeconds}s` : 'Claim Window'}
-                </span>
-              )}
-              {game?.autoCallActive && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400 text-emerald-950 uppercase tracking-wider animate-pulse">
-                  <Radio className="w-2.5 h-2.5" />
-                  Auto
-                </span>
-              )}
-            </div>
-            {game?.gameCode && (
-              <span className="text-[11px] text-blue-200 font-mono font-bold tracking-wide truncate">
-                {game.gameCode}
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-lg md:text-xl font-extrabold tracking-tight truncate drop-shadow-xs font-sans">
+              {appName || 'MY Bingo'}
+            </h1>
+            {(game?.status === 'pre_game_countdown' || game?.status === 'starting_countdown') && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black bg-amber-400 text-amber-950 uppercase tracking-wider animate-pulse shadow-xs">
+                <Clock className="w-3 h-3" />
+                {countdownSeconds && countdownSeconds > 0 ? `Starts in ${countdownSeconds}s` : 'Starting Soon'}
+              </span>
+            )}
+            {game?.claimWindowActive && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-black bg-purple-300 text-purple-950 uppercase tracking-wider animate-pulse shadow-xs">
+                <Sparkles className="w-3 h-3" />
+                {claimWindowSeconds && claimWindowSeconds > 0 ? `Claim: ${claimWindowSeconds}s` : 'Claim Window'}
+              </span>
+            )}
+            {game?.autoCallActive && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-400 text-emerald-950 uppercase tracking-wider animate-pulse">
+                <Radio className="w-2.5 h-2.5" />
+                Auto
               </span>
             )}
           </div>

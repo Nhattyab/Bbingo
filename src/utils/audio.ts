@@ -122,6 +122,72 @@ class SoundManager {
     }
   }
 
+  playGameStartingAlert() {
+    if (!this.soundEnabled) return;
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+
+    try {
+      // Energetic upward 3-tone chime for game start: G4 -> C5 -> E5
+      const notes = [392.00, 523.25, 659.25];
+      const now = ctx.currentTime;
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        const start = now + i * 0.12;
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.25, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
+
+        osc.start(start);
+        osc.stop(start + 0.35);
+      });
+    } catch {
+      // Ignore
+    }
+
+    if (this.vibrationEnabled && typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([150, 50, 200]);
+    }
+  }
+
+  playBingoClaimedAlert() {
+    if (!this.soundEnabled) return;
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+
+    try {
+      // Attention alert chime: high chime pair D5 -> A5 -> D6
+      const notes = [587.33, 880.00, 1174.66];
+      const now = ctx.currentTime;
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        const start = now + i * 0.15;
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.3, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+
+        osc.start(start);
+        osc.stop(start + 0.4);
+      });
+    } catch {
+      // Ignore
+    }
+
+    if (this.vibrationEnabled && typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([200, 100, 200, 100, 300]);
+    }
+  }
+
   speakCall(letter: string, number: number) {
     if (!this.voiceCallerEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) {
       return;

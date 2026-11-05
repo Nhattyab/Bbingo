@@ -201,6 +201,9 @@ export interface HistoricalGame {
   status: 'completed' | 'cancelled';
   winners: Winner[];
   ballSequence: BingoBall[];
+  blockedCards?: BlockedCard[];
+  winningBall?: BingoBall | null;
+  participantCards?: BingoCard[];
 }
 
 export interface SystemSettings {
@@ -616,7 +619,7 @@ let currentGame: GameSession = {
   hostName: 'Host Alice',
   hostId: 'usr-host-1',
   announcements: [
-    'registration closed',
+    'Next game',
   ],
   calledNumbers: [],
   currentNumber: null,
@@ -689,17 +692,39 @@ const auditLogs: AuditLogEntry[] = [
 ];
 
 // Historical Games Archive
+// Sample Historical Cards
+const sampleHistCard1 = generateBingoCard('usr-player-1', 'game-hist-101');
+sampleHistCard1.id = '102401';
+sampleHistCard1.marked[0] = [true, true, true, true, true];
+
+const sampleHistCard2 = generateBingoCard('usr-player-1', 'game-hist-101');
+sampleHistCard2.id = '108842';
+
+const sampleHistBlockedCard = generateBingoCard('usr-player-4', 'game-hist-101');
+sampleHistBlockedCard.id = '394105';
+sampleHistBlockedCard.isBlocked = true;
+sampleHistBlockedCard.blockReason = 'False claim: pattern not met';
+
+const sampleHistCard3 = generateBingoCard('usr-player-2', 'game-hist-102');
+sampleHistCard3.id = '208801';
+sampleHistCard3.marked[0][0] = true;
+sampleHistCard3.marked[0][4] = true;
+sampleHistCard3.marked[4][0] = true;
+sampleHistCard3.marked[4][4] = true;
+
+// Historical Games Archive
 const historicalGames: HistoricalGame[] = [
   {
     id: 'game-hist-101',
-    gameCode: '10:20-BINGO-842',
-    title: '10:20 Sunday Championship #42',
+    gameCode: 'bg00842a',
+    title: 'Sunday Championship #42',
     completedAt: Date.now() - 3600000 * 5,
     durationMinutes: 14,
     winningRule: 'horizontal_line',
     ballsCalledCount: 22,
     registeredPlayersCount: 8,
     totalCardsCount: 18,
+    individualPrize: 150.0,
     prizePool: 150.0,
     status: 'completed',
     winners: [
@@ -707,7 +732,7 @@ const historicalGames: HistoricalGame[] = [
         id: 'win-hist-1',
         gameId: 'game-hist-101',
         claimId: 'claim-hist-1',
-        cardId: 'CARD-1024',
+        cardId: '102401',
         userId: 'usr-player-1',
         displayName: 'Lucky Player',
         winningPattern: 'Horizontal Line (Row 1)',
@@ -717,6 +742,17 @@ const historicalGames: HistoricalGame[] = [
         winningCoordinates: [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4]],
       },
     ],
+    winningBall: createBall(25, 22),
+    blockedCards: [
+      {
+        cardId: '394105',
+        userId: 'usr-player-4',
+        blockedAt: Date.now() - 3600000 * 5,
+        reason: 'False claim: pattern not met',
+        claimId: 'claim-hist-bad-1',
+      },
+    ],
+    participantCards: [sampleHistCard1, sampleHistCard2, sampleHistBlockedCard],
     ballSequence: [
       createBall(7, 1),
       createBall(22, 2),
@@ -744,14 +780,15 @@ const historicalGames: HistoricalGame[] = [
   },
   {
     id: 'game-hist-102',
-    gameCode: '10:20-BINGO-791',
-    title: '10:20 Saturday Night Fever #41',
+    gameCode: 'bg00791b',
+    title: 'Saturday Night Fever #41',
     completedAt: Date.now() - 3600000 * 28,
     durationMinutes: 19,
     winningRule: 'four_corners',
     ballsCalledCount: 28,
     registeredPlayersCount: 12,
     totalCardsCount: 29,
+    individualPrize: 200.0,
     prizePool: 200.0,
     status: 'completed',
     winners: [
@@ -759,7 +796,7 @@ const historicalGames: HistoricalGame[] = [
         id: 'win-hist-2',
         gameId: 'game-hist-102',
         claimId: 'claim-hist-2',
-        cardId: 'CARD-2088',
+        cardId: '208801',
         userId: 'usr-player-2',
         displayName: 'Bingo Champ',
         winningPattern: 'Four Corners',
@@ -769,6 +806,9 @@ const historicalGames: HistoricalGame[] = [
         winningCoordinates: [[0, 0], [0, 4], [4, 0], [4, 4]],
       },
     ],
+    winningBall: createBall(66, 10),
+    blockedCards: [],
+    participantCards: [sampleHistCard3],
     ballSequence: [
       createBall(5, 1),
       createBall(18, 2),
@@ -847,16 +887,24 @@ function loadPersistedState() {
           currentGame.gameCode = generateGameCode();
         }
         currentGame.title = '75-Ball Bingo';
-        if (currentGame.status === 'registration_open') {
+        if (isBingoSuspended || currentGame.isServiceSuspended) {
+          currentGame.announcements = ['Game suspended by administrator'];
+        } else if (currentGame.status === 'stopped') {
+          currentGame.announcements = ['Game stopped'];
+        } else if (currentGame.status === 'paused') {
+          currentGame.announcements = ['Game paused'];
+        } else if (currentGame.status === 'registration_open') {
           currentGame.announcements = ['registration opened'];
         } else if (currentGame.status === 'registration_closed') {
           currentGame.announcements = ['registration closed'];
-        } else if (currentGame.status === 'starting_countdown' || currentGame.status === 'running') {
+        } else if (currentGame.status === 'starting_countdown' || currentGame.status === 'pre_game_countdown') {
           currentGame.announcements = ['Game is starting ..'];
-        } else if (currentGame.status === 'game_completed') {
+        } else if (currentGame.status === 'running' || currentGame.status === 'in_progress') {
+          currentGame.announcements = ['Game is playing'];
+        } else if (currentGame.status === 'game_completed' || currentGame.status === 'winner_confirmed' || currentGame.status === 'completed') {
           currentGame.announcements = ['game completed, ready for the next game'];
         } else {
-          currentGame.announcements = ['registration closed'];
+          currentGame.announcements = ['Next game'];
         }
       }
       if (data.isBingoSuspended !== undefined) {
@@ -965,6 +1013,9 @@ function transitionToNextGame() {
 
   // Archive completed game session into historical games if it was played or had winners
   if (currentGame.winners.length > 0 || currentGame.calledNumbers.length > 0) {
+    const currentRegisteredCards = Array.from(cardsMap.values()).filter(
+      (c) => c.gameId === currentGame.id || c.isRegistered
+    );
     const histGame: HistoricalGame = {
       id: currentGame.id,
       gameCode: currentGame.gameCode,
@@ -974,11 +1025,17 @@ function transitionToNextGame() {
       winningRule: currentGame.activeWinningRule,
       ballsCalledCount: currentGame.calledNumbers.length,
       registeredPlayersCount: currentGame.registeredPlayersCount,
-      totalCardsCount: Array.from(registrationsMap.values()).filter((r) => r.gameId === currentGame.id).length,
+      totalCardsCount: Array.from(registrationsMap.values()).filter((r) => r.gameId === currentGame.id).length || currentRegisteredCards.length,
+      individualPrize: currentGame.individualPrize,
       prizePool: currentGame.totalPrizePool,
       status: 'completed',
       winners: [...currentGame.winners],
       ballSequence: [...currentGame.calledNumbers],
+      blockedCards: [...(currentGame.blockedCards || [])],
+      winningBall: currentGame.winners.length > 0 && currentGame.calledNumbers.length > 0
+        ? currentGame.calledNumbers[currentGame.calledNumbers.length - 1]
+        : (currentGame.calledNumbers.length > 0 ? currentGame.calledNumbers[currentGame.calledNumbers.length - 1] : null),
+      participantCards: currentRegisteredCards.map((c) => JSON.parse(JSON.stringify(c))),
     };
     historicalGames.unshift(histGame);
     if (historicalGames.length > 100) historicalGames.pop();
@@ -1014,7 +1071,7 @@ function transitionToNextGame() {
     hostName: 'Host Alice',
     hostId: 'usr-host-1',
     announcements: [
-      'registration closed',
+      'Next game',
     ],
     calledNumbers: [],
     currentNumber: null,
@@ -1942,6 +1999,8 @@ app.post('/api/game/start', (req: Request, res: Response) => {
 
       // Start automatic caller
       startAutoCaller(currentGame.autoCallIntervalSeconds || 7);
+      currentGame.announcements = ['Game is playing'];
+      broadcastEvent('GAME_UPDATED', currentGame);
       // Immediately call first number
       callNextAuthoritativeNumber();
     }, 5000);
@@ -1971,7 +2030,7 @@ app.post('/api/game/stop', (req: Request, res: Response) => {
   currentGame.numberCallingStartTimestamp = undefined;
   currentGame.claimWindowActive = false;
   currentGame.claimWindowDeadline = undefined;
-  currentGame.announcements.unshift('Game has been stopped by the host.');
+  currentGame.announcements = ['Game stopped'];
 
   logAuditEvent(
     auth.caller!.id,
@@ -2006,7 +2065,7 @@ app.post('/api/game/resume', (req: Request, res: Response) => {
   }
 
   currentGame.status = 'running';
-  currentGame.announcements.unshift('Game resumed by host.');
+  currentGame.announcements = ['Game resumed'];
 
   logAuditEvent(
     auth.caller!.id,
@@ -2532,7 +2591,7 @@ app.post('/api/game/reset', (req: Request, res: Response) => {
     hostName: auth.caller?.displayName || 'Host Alice',
     hostId: auth.caller?.id || 'usr-host-1',
     announcements: [
-      'Game reset! Configuration unlocked for editing. Registration is currently CLOSED.',
+      'Game reset',
     ],
     calledNumbers: [],
     currentNumber: null,
@@ -3525,10 +3584,8 @@ app.post('/api/admin/service/stop', (req: Request, res: Response) => {
   currentGame.countdownDeadline = undefined;
   currentGame.numberCallingStartTimestamp = undefined;
   currentGame.claimWindowActive = false;
-  currentGame.claimWindowDeadline = undefined;
-
-  const notification = 'Bingo game and platform services have been stopped by the administrator.';
-  currentGame.announcements.unshift(notification);
+  const notification = 'Game suspended by administrator';
+  currentGame.announcements = [notification];
 
   logAuditEvent(
     auth.caller!.id,

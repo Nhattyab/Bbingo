@@ -133,21 +133,17 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="font-mono font-black text-indigo-700 text-xs sm:text-sm tracking-wide">
-                  {game.gameCode}
+                <span className="font-bold text-slate-900 text-xs sm:text-sm tracking-tight truncate">
+                  GAME - {ruleName}
                 </span>
                 <span
-                  className={`text-[9px] sm:text-[10px] font-semibold px-1.5 py-0.2 rounded-full border ${statusInfo.bg}`}
+                  className={`text-[9px] sm:text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${statusInfo.bg}`}
                 >
                   {statusInfo.label}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-500 font-medium truncate">
-                <span className="text-amber-700 font-semibold truncate">{ruleName}</span>
-                <span>·</span>
-                <span className="font-mono text-slate-600 font-semibold">
-                  ${(game.totalPrizePool ?? 0).toFixed(2)} Pool
-                </span>
+              <div className="text-[11px] sm:text-xs font-mono font-semibold text-indigo-700 mt-0.5 tracking-tight truncate">
+                Gamecode - {game.gameCode}
               </div>
             </div>
           </div>

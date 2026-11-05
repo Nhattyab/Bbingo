@@ -13,6 +13,7 @@ import {
   Clock,
   Sparkles,
   ShieldAlert,
+  DollarSign,
 } from 'lucide-react';
 import { GameSession, AuditLogEntry } from '../../types/bingo';
 import { WINNING_RULE_LABELS, COLUMN_COLORS } from '../../utils/bingoRules';
@@ -80,8 +81,13 @@ export function OverviewTab({
                 {game.gameCode}
               </span>
             </div>
+            <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-600 font-medium flex-wrap">
+              <span>Entry: <strong className="font-mono text-slate-900">${(game.entryPrice ?? 0).toFixed(2)}</strong></span>
+              <span>·</span>
+              <span>Pool: <strong className="font-mono text-emerald-600">${(game.totalPrizePool ?? 0).toFixed(2)}</strong></span>
+            </div>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
             <Radio className="w-5 h-5" />
           </div>
         </div>
@@ -93,7 +99,7 @@ export function OverviewTab({
               {registeredCardsCount} <span className="text-xs text-slate-400 font-normal">/ {totalCardsCount}</span>
             </span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
             <CreditCard className="w-5 h-5" />
           </div>
         </div>
@@ -105,20 +111,23 @@ export function OverviewTab({
               {calledCount} <span className="text-xs text-slate-400 font-normal">/ 75 ({progressPercent}%)</span>
             </span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+          <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
             <Hash className="w-5 h-5" />
           </div>
         </div>
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Prize Pool</span>
+            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider block">Cash Registered</span>
             <span className="text-xl font-black text-emerald-600 mt-0.5 block font-mono">
-              ${(game.totalPrizePool ?? 0).toFixed(2)}
+              ${(registeredCardsCount * (game.entryPrice ?? 0)).toFixed(2)}
+            </span>
+            <span className="text-[10px] text-slate-400 mt-0.5 block">
+              {registeredCardsCount} cards × ${(game.entryPrice ?? 0).toFixed(2)}
             </span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <Trophy className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <DollarSign className="w-5 h-5" />
           </div>
         </div>
       </div>

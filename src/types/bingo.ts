@@ -236,6 +236,9 @@ export interface HistoricalGame {
   status: 'completed' | 'cancelled';
   winners: Winner[];
   ballSequence: BingoBall[];
+  blockedCards?: BlockedCard[];
+  winningBall?: BingoBall | null;
+  participantCards?: BingoCard[];
 }
 
 export interface SystemSettings {

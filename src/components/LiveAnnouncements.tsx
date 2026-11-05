@@ -15,17 +15,17 @@ export const LiveAnnouncements: React.FC<LiveAnnouncementsProps> = ({
   game,
   claimWindowSeconds,
 }) => {
-  // Strictly enforce the 5 user-specified notification messages:
-  // 1. "registration opened"
-  // 2. "registration closed"
-  // 3. "Game is starting .."
-  // 4. "Bingo claimed, bingo claim window will be closed in __ seconds"
-  // 5. "game completed, ready for the next game"
-  // NEVER show blocked cards or player codes in this notification card.
-  let displayMessage = 'registration closed';
+  // Determine precise short notification message based on authoritative game state & announcements
+  let displayMessage = 'Next game';
 
-  if (isServiceSuspended) {
-    displayMessage = 'Bingo games are currently suspended by the administrator.';
+  const firstAnnouncement = announcements?.[0];
+
+  if (isServiceSuspended || game?.isServiceSuspended) {
+    displayMessage = 'Game suspended by administrator';
+  } else if (game?.status === 'stopped') {
+    displayMessage = 'Game stopped';
+  } else if (game?.status === 'paused') {
+    displayMessage = 'Game paused';
   } else if (game?.claimWindowActive || game?.status === 'checking_winners' || game?.status === 'claim_review') {
     const secs = claimWindowSeconds && claimWindowSeconds > 0 ? claimWindowSeconds : 15;
     displayMessage = `Bingo claimed, bingo claim window will be closed in ${secs} seconds`;
@@ -37,29 +37,43 @@ export const LiveAnnouncements: React.FC<LiveAnnouncementsProps> = ({
     displayMessage = 'game completed, ready for the next game';
   } else if (
     game?.status === 'starting_countdown' ||
-    game?.status === 'pre_game_countdown' ||
-    game?.status === 'running' ||
-    game?.status === 'in_progress'
+    game?.status === 'pre_game_countdown'
   ) {
     displayMessage = 'Game is starting ..';
-  } else if (game?.status === 'registration_closed') {
-    displayMessage = 'registration closed';
+  } else if (game?.status === 'running' || game?.status === 'in_progress') {
+    if (firstAnnouncement === 'Game resumed') {
+      displayMessage = 'Game resumed';
+    } else {
+      displayMessage = 'Game is playing';
+    }
   } else if (game?.status === 'registration_open' || game?.registrationOpen) {
     displayMessage = 'registration opened';
-  } else {
-    // Check server announcement if it matches allowed messages
-    const first = announcements?.[0];
+  } else if (game?.status === 'registration_closed') {
+    displayMessage = 'registration closed';
+  } else if (firstAnnouncement === 'Game reset') {
+    displayMessage = 'Game reset';
+  } else if (game?.status === 'setup' || game?.status === 'next_game') {
+    displayMessage = 'Next game';
+  } else if (firstAnnouncement) {
+    // Check known exact notification phrases
     if (
-      first === 'registration opened' ||
-      first === 'registration closed' ||
-      first === 'Game is starting ..' ||
-      first === 'game completed, ready for the next game'
+      firstAnnouncement === 'Game is starting ..' ||
+      firstAnnouncement === 'Game is playing' ||
+      firstAnnouncement === 'Game stopped' ||
+      firstAnnouncement === 'Game paused' ||
+      firstAnnouncement === 'Game resumed' ||
+      firstAnnouncement === 'Game reset' ||
+      firstAnnouncement === 'Game suspended by administrator' ||
+      firstAnnouncement === 'registration opened' ||
+      firstAnnouncement === 'registration closed' ||
+      firstAnnouncement === 'game completed, ready for the next game' ||
+      firstAnnouncement === 'Next game'
     ) {
-      displayMessage = first;
-    } else if (first && first.startsWith('Bingo claimed, bingo claim window will be closed in')) {
-      displayMessage = first;
+      displayMessage = firstAnnouncement;
+    } else if (firstAnnouncement.startsWith('Bingo claimed, bingo claim window will be closed in')) {
+      displayMessage = firstAnnouncement;
     } else {
-      displayMessage = game?.registrationOpen ? 'registration opened' : 'registration closed';
+      displayMessage = 'Next game';
     }
   }
 
@@ -75,7 +89,7 @@ export const LiveAnnouncements: React.FC<LiveAnnouncementsProps> = ({
         <p className="font-semibold truncate leading-snug">{displayMessage}</p>
       </div>
 
-      {isServiceSuspended && (
+      {(isServiceSuspended || game?.isServiceSuspended) && (
         <span className="shrink-0 text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded uppercase flex items-center gap-1">
           <AlertCircle className="w-2.5 h-2.5" />
           <span>Suspended</span>

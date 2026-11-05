@@ -43,16 +43,13 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
 
   const isHost = user?.role === 'host' || user?.role === 'admin';
 
-  const navLinks = [
+  const navLinks: { id: string; label: string; icon: any; onClick?: () => void }[] = [
     { id: 'game', label: 'Home / Game', icon: Home },
-    { id: 'cards', label: 'My Bingo Cards', icon: Layers },
     { id: 'rules', label: 'Game Rules', icon: BookOpen },
-    { id: 'saved_cards', label: 'Saved Cards History', icon: Archive, onClick: onOpenSavedCards },
     { id: 'history', label: 'Game History', icon: History },
     { id: 'profile', label: 'Profile', icon: UserIcon },
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'help', label: 'Help and Support', icon: HelpCircle },
   ];
 
   return (
@@ -67,8 +64,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               75
             </div>
             <div>
-              <div className="font-extrabold text-sm tracking-tight">10:20 BINGO</div>
-              <div className="text-[11px] text-blue-200">Tournament Edition</div>
+              <div className="font-extrabold text-sm tracking-tight">MY Bingo</div>
+              <div className="text-[11px] text-blue-200">Classic Edition</div>
             </div>
           </div>
           <button

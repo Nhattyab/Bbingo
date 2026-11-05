@@ -69,7 +69,7 @@ export default function App() {
     voiceCallerEnabled: true,
     vibrationEnabled: true,
     theme: 'light',
-    customAppName: '10:20 BINGO',
+    customAppName: 'MY Bingo',
     autoComplete: true, // Cross-card marking synchronization
     gridColumns: 2,
     sortBy: 'id',
@@ -100,6 +100,8 @@ export default function App() {
   const [selectedBallNumber, setSelectedBallNumber] = useState<number | null>(null);
 
   const prevBallCountRef = useRef<number>(0);
+  const prevStatusRef = useRef<string>('');
+  const prevClaimWindowRef = useRef<boolean>(false);
 
   // Centralized sign out handler
   const handleLogout = () => {
@@ -145,6 +147,20 @@ export default function App() {
           }
         }
         prevBallCountRef.current = newBallCount;
+
+        // Audio alerts for game starting and claim window
+        if (
+          (gameData.status === 'starting_countdown' || gameData.status === 'pre_game_countdown') &&
+          prevStatusRef.current !== 'starting_countdown' &&
+          prevStatusRef.current !== 'pre_game_countdown'
+        ) {
+          soundManager.playGameStartingAlert();
+        }
+        if (gameData.claimWindowActive && !prevClaimWindowRef.current) {
+          soundManager.playBingoClaimedAlert();
+        }
+        prevStatusRef.current = gameData.status;
+        prevClaimWindowRef.current = Boolean(gameData.claimWindowActive);
       }
 
       if (currentUser?.id) {
@@ -211,6 +227,20 @@ export default function App() {
             }
           }
           prevBallCountRef.current = newCount;
+
+          // Audio alerts for game starting and claim window
+          if (
+            (updatedGame.status === 'starting_countdown' || updatedGame.status === 'pre_game_countdown') &&
+            prevStatusRef.current !== 'starting_countdown' &&
+            prevStatusRef.current !== 'pre_game_countdown'
+          ) {
+            soundManager.playGameStartingAlert();
+          }
+          if (updatedGame.claimWindowActive && !prevClaimWindowRef.current) {
+            soundManager.playBingoClaimedAlert();
+          }
+          prevStatusRef.current = updatedGame.status;
+          prevClaimWindowRef.current = Boolean(updatedGame.claimWindowActive);
         };
 
         sse.addEventListener('INIT', (e: MessageEvent) => {
@@ -255,6 +285,7 @@ export default function App() {
 
         sse.addEventListener('PRE_GAME_COUNTDOWN', (e: MessageEvent) => {
           try {
+            soundManager.playGameStartingAlert();
             const data = JSON.parse(e.data);
             if (data.game) handleGameUpdate(data.game);
           } catch {}
@@ -299,6 +330,7 @@ export default function App() {
 
         sse.addEventListener('CLAIM_WINDOW_STARTED', (e: MessageEvent) => {
           try {
+            soundManager.playBingoClaimedAlert();
             const data = JSON.parse(e.data);
             if (data.game) handleGameUpdate(data.game);
           } catch {}
@@ -1115,7 +1147,7 @@ export default function App() {
       <GameRulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
 
       {/* Game History Modal */}
-      <GameHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
+      <GameHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} currentUser={currentUser} />
 
       {/* Saved Cards Archive Modal */}
       <SavedCardsModal
