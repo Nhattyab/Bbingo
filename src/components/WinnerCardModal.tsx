@@ -2,6 +2,7 @@ import React from 'react';
 import { X, Trophy, CheckCircle2, Star, Award } from 'lucide-react';
 import { Winner } from '../types/bingo';
 import { COLUMN_COLORS, getDisplayCardNumber } from '../utils/bingoRules';
+import { useLanguage } from '../context/LanguageContext';
 
 interface WinnerCardModalProps {
   winner: Winner | null;
@@ -9,6 +10,8 @@ interface WinnerCardModalProps {
 }
 
 export const WinnerCardModal: React.FC<WinnerCardModalProps> = ({ winner, onClose }) => {
+  const { t, language } = useLanguage();
+
   if (!winner) return null;
 
   const columns = ['B', 'I', 'N', 'G', 'O'] as const;
@@ -30,7 +33,7 @@ export const WinnerCardModal: React.FC<WinnerCardModalProps> = ({ winner, onClos
             </div>
             <div>
               <h3 className="font-extrabold text-sm sm:text-base">
-                Winning Card: #{getDisplayCardNumber(winner.cardId)}
+                {language === 'am' ? 'አሸናፊ ካርድ: ' : 'Winning Card: '}#{getDisplayCardNumber(winner.cardId)}
               </h3>
               <p className="text-xs text-amber-100">
                 {winner.displayName} · {winner.winningPattern}
@@ -50,7 +53,7 @@ export const WinnerCardModal: React.FC<WinnerCardModalProps> = ({ winner, onClos
         <div className="p-4 sm:p-5 space-y-4">
           <div className="flex items-center justify-between p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900">
             <div>
-              <span className="font-bold block">Prize Awarded</span>
+              <span className="font-bold block">{language === 'am' ? 'የተሸለመው ሽልማት' : 'Prize Awarded'}</span>
               <span className="font-mono text-base font-black text-amber-700">
                 ${winner.prizeAmount.toFixed(2)}
               </span>
@@ -95,7 +98,7 @@ export const WinnerCardModal: React.FC<WinnerCardModalProps> = ({ winner, onClos
                           className="aspect-square rounded-lg flex flex-col items-center justify-center font-black bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 ring-2 ring-amber-300 shadow-xs"
                         >
                           <Star className="w-3 h-3 fill-current" />
-                          <span className="text-[8px] font-black leading-none">FREE</span>
+                          <span className="text-[8px] font-black leading-none">{language === 'am' ? 'ነጻ' : 'FREE'}</span>
                         </div>
                       );
                     }
@@ -120,13 +123,13 @@ export const WinnerCardModal: React.FC<WinnerCardModalProps> = ({ winner, onClos
             </div>
           ) : (
             <div className="text-center py-6 text-xs text-slate-400">
-              Card matrix details not recorded for historical game.
+              {language === 'am' ? 'የካርዱ ማትሪክስ ዝርዝር ለዚህ ያለፈ ጨዋታ አልተመዘገበም' : 'Card matrix details not recorded for historical game.'}
             </div>
           )}
 
           <div className="text-center">
             <span className="text-[11px] text-slate-400 font-medium">
-              Green highlight indicates verified winning pattern coordinates
+              {language === 'am' ? 'አረንጓዴ ቀለም የተረጋገጡትን የአሸናፊ ቅርጽ መጋጠሚያዎች ያሳያል' : 'Green highlight indicates verified winning pattern coordinates'}
             </span>
           </div>
         </div>

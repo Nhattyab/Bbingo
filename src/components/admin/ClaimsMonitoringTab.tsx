@@ -154,7 +154,7 @@ export function ClaimsMonitoringTab({
                 className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:scale-95 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition cursor-pointer flex items-center gap-2"
               >
                 <Trophy className="w-4 h-4 text-amber-300" />
-                <span>Finalize Game (30s)</span>
+                <span>Finalize Game</span>
               </button>
             )}
           </div>

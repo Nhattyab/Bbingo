@@ -2,6 +2,7 @@ import React from 'react';
 import { X, ShieldAlert, Star, Info } from 'lucide-react';
 import { BingoCard, BingoBall } from '../types/bingo';
 import { COLUMN_COLORS, getDisplayCardNumber } from '../utils/bingoRules';
+import { useLanguage } from '../context/LanguageContext';
 
 interface CardInspectModalProps {
   card: BingoCard | null;
@@ -14,6 +15,8 @@ export const CardInspectModal: React.FC<CardInspectModalProps> = ({
   calledNumbers,
   onClose,
 }) => {
+  const { t, language } = useLanguage();
+
   if (!card) return null;
 
   const calledSet = new Set(calledNumbers.map((b) => b.number));
@@ -31,8 +34,12 @@ export const CardInspectModal: React.FC<CardInspectModalProps> = ({
               <ShieldAlert className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm">Card Inspector: #{getDisplayCardNumber(card.id)}</h3>
-              <p className="text-[11px] text-slate-400">Card details & 5x5 matrix</p>
+              <h3 className="font-bold text-sm">
+                {language === 'am' ? 'የካርድ ምርመራ: ' : 'Card Inspector: '}#{getDisplayCardNumber(card.id)}
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                {language === 'am' ? 'የካርድ ዝርዝር እና የ 5x5 ማትሪክስ' : 'Card details & 5x5 matrix'}
+              </p>
             </div>
           </div>
           <button
@@ -49,21 +56,27 @@ export const CardInspectModal: React.FC<CardInspectModalProps> = ({
           {/* Status info */}
           <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
             <div>
-              <span className="text-slate-400 block text-[10px]">Owner ID</span>
+              <span className="text-slate-400 block text-[10px]">
+                {language === 'am' ? 'የባለቤት መለያ' : 'Owner ID'}
+              </span>
               <span className="font-mono font-semibold text-slate-800">{card.userId}</span>
             </div>
             <div className="text-right">
-              <span className="text-slate-400 block text-[10px]">Status</span>
+              <span className="text-slate-400 block text-[10px]">
+                {language === 'am' ? 'ሁኔታ' : 'Status'}
+              </span>
               {card.isBlocked ? (
                 <span className="font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                  Card is blocked.
+                  {language === 'am' ? 'የታገደ' : 'Card is blocked.'}
                 </span>
               ) : card.isRegistered ? (
                 <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                  Registered
+                  {language === 'am' ? 'የተመዘገበ' : 'Registered'}
                 </span>
               ) : (
-                <span className="font-medium text-slate-500">Unregistered</span>
+                <span className="font-medium text-slate-500">
+                  {language === 'am' ? 'ያልተመዘገበ' : 'Unregistered'}
+                </span>
               )}
             </div>
           </div>
@@ -95,7 +108,9 @@ export const CardInspectModal: React.FC<CardInspectModalProps> = ({
                         className="aspect-square rounded-lg flex flex-col items-center justify-center font-black bg-gradient-to-tr from-amber-400 to-amber-500 text-slate-950 ring-2 ring-amber-300 shadow-xs"
                       >
                         <Star className="w-3 h-3 fill-current" />
-                        <span className="text-[8px] font-black leading-none">FREE</span>
+                        <span className="text-[8px] font-black leading-none">
+                          {language === 'am' ? 'ነጻ' : 'FREE'}
+                        </span>
                       </div>
                     );
                   }
@@ -121,7 +136,11 @@ export const CardInspectModal: React.FC<CardInspectModalProps> = ({
 
           <div className="text-center text-[11px] text-slate-500 font-medium flex items-center justify-center gap-1">
             <Info className="w-3.5 h-3.5 text-slate-400" />
-            <span>Blue cells indicate marked squares on this card</span>
+            <span>
+              {language === 'am'
+                ? 'ሰማያዊ ሴሎች በዚህ ካርድ ላይ የተመረጡትን ያሳያሉ'
+                : 'Blue cells indicate marked squares on this card'}
+            </span>
           </div>
         </div>
       </div>

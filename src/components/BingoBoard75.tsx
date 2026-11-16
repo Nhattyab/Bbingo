@@ -1,6 +1,7 @@
 import React from 'react';
 import { BingoBall, BingoColumn } from '../types/bingo';
 import { COLUMN_COLORS } from '../utils/bingoRules';
+import { useLanguage } from '../context/LanguageContext';
 
 interface BingoBoard75Props {
   calledNumbers: BingoBall[];
@@ -27,6 +28,7 @@ export const BingoBoard75: React.FC<BingoBoard75Props> = ({
   latestBall,
   onNumberClick,
 }) => {
+  const { t } = useLanguage();
   const calledSet = new Set(calledNumbers.map((b) => b.number));
   const latestNum = latestBall?.number;
 
@@ -34,9 +36,9 @@ export const BingoBoard75: React.FC<BingoBoard75Props> = ({
     <div className="bg-slate-900 text-white rounded-xl sm:rounded-2xl p-2 sm:p-3.5 shadow-inner border border-slate-800 space-y-2 sm:space-y-3 w-full min-w-0">
       <div className="flex items-center justify-between">
         <div className="text-[11px] sm:text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 sm:gap-2">
-          <span>Official 75-Ball Master Board</span>
+          <span>{t.masterBoardTitle}</span>
           <span className="font-mono text-[9px] sm:text-[10px] bg-slate-800 text-blue-400 px-1.5 py-0.5 rounded-full">
-            {calledNumbers.length}/75 Called
+            {calledNumbers.length}/75 {t.calledCount}
           </span>
         </div>
       </div>

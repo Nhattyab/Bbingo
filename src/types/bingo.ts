@@ -194,10 +194,12 @@ export interface UserPreferences {
   gridColumns: number; // 1, 2, or 3 columns
   sortBy: 'id' | 'recent' | 'registration' | 'marked';
   notificationsEnabled: boolean;
+  language?: 'en' | 'am';
 }
 
 export type AdminNavigationTab =
   | 'overview'
+  | 'financial'
   | 'setup'
   | 'live-control'
   | 'users'
@@ -231,6 +233,7 @@ export interface HistoricalGame {
   ballsCalledCount: number;
   registeredPlayersCount: number;
   totalCardsCount: number;
+  entryPrice?: number;
   individualPrize?: number;
   prizePool: number;
   status: 'completed' | 'cancelled';

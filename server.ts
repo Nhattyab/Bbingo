@@ -4,6 +4,9 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { loadWalletState, getWalletStoragePayload, initWalletForUser } from './src/server/wallet/store';
+import { WalletLedgerService } from './src/server/wallet/ledger';
+import { paymentProviderRegistry } from './src/server/wallet/providers/registry';
 export type BingoColumn = 'B' | 'I' | 'N' | 'G' | 'O';
 
 export interface BingoBall {
@@ -537,7 +540,14 @@ const HOST = hostIndex !== -1 && args[hostIndex + 1] ? args[hostIndex + 1] : '0.
 const isProd = process.env.NODE_ENV === 'production';
 const PORT = cliPort || (!isProd ? 3000 : (process.env.PORT ? parseInt(process.env.PORT, 10) : 3000));
 
-app.use(express.json());
+// Preserve raw JSON body specifically for Verify.et webhook HMAC-SHA256 verification
+app.use('/api/webhooks/verify-et', express.raw({ type: 'application/json' }));
+app.use((req, res, next) => {
+  if (req.path === '/api/webhooks/verify-et') {
+    return next();
+  }
+  return express.json()(req, res, next);
+});
 
 // Persistent State Storage File
 const DB_FILE = path.join('/tmp', 'bingo_db.json');
@@ -724,6 +734,7 @@ const historicalGames: HistoricalGame[] = [
     ballsCalledCount: 22,
     registeredPlayersCount: 8,
     totalCardsCount: 18,
+    entryPrice: 5.0,
     individualPrize: 150.0,
     prizePool: 150.0,
     status: 'completed',
@@ -929,7 +940,18 @@ function loadPersistedState() {
           users.set(u.id, u);
         });
       }
+      // Load and migrate wallets for all players and users
+      loadWalletState(data, Array.from(users.values()));
+    } else {
+      // Initialize wallets for initial seeded users if fresh DB
+      loadWalletState({}, Array.from(users.values()));
     }
+
+    // Ensure all user records have their available balances synchronized
+    users.forEach((u) => {
+      const w = WalletLedgerService.getWallet(u.id);
+      u.balance = w.availableBalance;
+    });
   } catch (err) {
     console.warn('Could not load persisted db:', err);
   }
@@ -943,6 +965,7 @@ function saveStateToDisk() {
       registrations: Array.from(registrationsMap.values()),
       users: Array.from(users.values()),
       isBingoSuspended,
+      ...getWalletStoragePayload(),
     };
     fs.writeFileSync(DB_FILE, JSON.stringify(payload));
   } catch {
@@ -1026,6 +1049,7 @@ function transitionToNextGame() {
       ballsCalledCount: currentGame.calledNumbers.length,
       registeredPlayersCount: currentGame.registeredPlayersCount,
       totalCardsCount: Array.from(registrationsMap.values()).filter((r) => r.gameId === currentGame.id).length || currentRegisteredCards.length,
+      entryPrice: currentGame.entryPrice || 1.0,
       individualPrize: currentGame.individualPrize,
       prizePool: currentGame.totalPrizePool,
       status: 'completed',
@@ -1206,6 +1230,32 @@ function verifyHostAuthorization(req: Request): { authorized: boolean; caller?: 
     };
   }
   return { authorized: true, caller };
+}
+
+// Strict Financial & Payment Admin authorization helper (admin role ONLY, no host access or substring fallback)
+function verifyFinancialAdminAuthorization(req: Request): {
+  authorized: boolean;
+  statusCode: number;
+  caller?: User;
+  error?: string;
+} {
+  const callerId = ((req.headers['x-user-id'] as string) || req.body?.userId || '').trim();
+  if (!callerId) {
+    return { authorized: false, statusCode: 401, error: 'Authentication required. Please log in.' };
+  }
+  const caller = users.get(callerId);
+  if (!caller) {
+    return { authorized: false, statusCode: 401, error: `Authenticated account '${callerId}' not found.` };
+  }
+  if (caller.role !== 'admin') {
+    return {
+      authorized: false,
+      statusCode: 403,
+      caller,
+      error: `Access denied. Role '${caller.role}' cannot access Wallet & Payments administration. Administrator role is required.`,
+    };
+  }
+  return { authorized: true, statusCode: 200, caller };
 }
 
 // --- API Endpoints ---
@@ -1455,7 +1505,7 @@ app.post('/api/game/cards/generate', (req: Request, res: Response) => {
 });
 
 // Register Card (Atomic, explicit action)
-app.post('/api/game/cards/register', (req: Request, res: Response) => {
+app.post('/api/game/cards/register', async (req: Request, res: Response) => {
   const { cardId, userId } = req.body;
 
   if (!cardId || !userId) {
@@ -1514,6 +1564,24 @@ app.post('/api/game/cards/register', (req: Request, res: Response) => {
     }
   }
 
+  // 4b. Wallet Ledger Check & Atomic Debit
+  let debitedWallet = null;
+  const entryFee = typeof currentGame.entryPrice === 'number' ? currentGame.entryPrice : 0;
+  if (entryFee > 0) {
+    const debitResult = await WalletLedgerService.debitGameEntry(userId, entryFee, currentGame.id, cardId);
+    if (!debitResult.success) {
+      return res.status(400).json({
+        error: debitResult.message,
+        message: debitResult.message,
+      });
+    }
+    debitedWallet = debitResult.wallet || null;
+    const callerUser = users.get(userId);
+    if (callerUser && debitResult.wallet) {
+      callerUser.balance = debitResult.wallet.availableBalance;
+    }
+  }
+
   // 5. Register atomically to current user for this game
   const newRegistration: CardRegistration = {
     id: `reg-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -1533,6 +1601,13 @@ app.post('/api/game/cards/register', (req: Request, res: Response) => {
 
   updateRegisteredPlayersCount();
   saveStateToDisk();
+
+  if (debitedWallet) {
+    broadcastEvent('WALLET_UPDATED', {
+      userId,
+      wallet: debitedWallet,
+    });
+  }
 
   broadcastEvent('CARD_REGISTERED', {
     cardId,
@@ -2639,11 +2714,15 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
         stats: { gamesPlayed: 0, bingosWon: 0, cardsPlayed: 0 },
       };
       users.set(newUser.id, newUser);
+      initWalletForUser(newUser.id, newUser.balance, 'ETB');
+      saveStateToDisk();
       return res.json({ success: true, user: newUser, token: `jwt-${newUser.id}` });
     }
     return res.status(401).json({ error: 'Invalid credentials. Password must be at least 4 characters.' });
   }
 
+  const wallet = WalletLedgerService.getWallet(foundUser.id);
+  foundUser.balance = wallet.availableBalance;
   res.json({ success: true, user: foundUser, token: `jwt-${foundUser.id}` });
 });
 
@@ -2672,6 +2751,8 @@ app.post('/api/auth/register', (req: Request, res: Response) => {
   };
 
   users.set(newUser.id, newUser);
+  initWalletForUser(newUser.id, newUser.balance, 'ETB');
+  saveStateToDisk();
   res.json({ success: true, user: newUser, token: `jwt-${newUser.id}` });
 });
 
@@ -2684,6 +2765,8 @@ app.get('/api/auth/me', (req: Request, res: Response) => {
   if (!user) {
     return res.status(404).json({ error: 'User not found' });
   }
+  const wallet = WalletLedgerService.getWallet(user.id);
+  user.balance = wallet.availableBalance;
   res.json(user);
 });
 
@@ -2845,6 +2928,8 @@ app.post('/api/admin/users', (req: Request, res: Response) => {
   };
 
   users.set(newUserId, newUser);
+  const createdWallet = initWalletForUser(newUserId, initialBalance, 'ETB');
+  newUser.balance = createdWallet.availableBalance;
 
   logAuditEvent(
     auth.caller.id,
@@ -2853,7 +2938,7 @@ app.post('/api/admin/users', (req: Request, res: Response) => {
     'USER_CREATED',
     'player',
     newUserId,
-    `Created new user account "${newUser.displayName}" (@${newUser.username}) with role: ${newUser.role}, balance: $${newUser.balance.toFixed(2)}`,
+    `Created new user account "${newUser.displayName}" (@${newUser.username}) with role: ${newUser.role}, balance: ${newUser.balance.toFixed(2)} ETB`,
     'info'
   );
 
@@ -2861,8 +2946,8 @@ app.post('/api/admin/users', (req: Request, res: Response) => {
   res.json({ success: true, user: newUser });
 });
 
-// Update user details & role (Admin only)
-app.post('/api/admin/users/:id/update', (req: Request, res: Response) => {
+// Update user details & role (Admin only — any balance update is routed through atomic wallet ledger)
+app.post('/api/admin/users/:id/update', async (req: Request, res: Response) => {
   const auth = verifyHostAuthorization(req);
   if (!auth.authorized || auth.caller?.role !== 'admin') {
     return res.status(403).json({ error: 'Super Administrator permission required to update user accounts.' });
@@ -2876,7 +2961,8 @@ app.post('/api/admin/users/:id/update', (req: Request, res: Response) => {
 
   const { displayName, email, role, balance } = req.body;
   const oldRole = targetUser.role;
-  const oldBalance = targetUser.balance;
+  const currentWallet = WalletLedgerService.getWallet(targetUserId);
+  const oldBalance = currentWallet.availableBalance;
 
   if (displayName && String(displayName).trim()) {
     targetUser.displayName = String(displayName).trim();
@@ -2887,8 +2973,29 @@ app.post('/api/admin/users/:id/update', (req: Request, res: Response) => {
   if (role && ['player', 'host', 'admin'].includes(role)) {
     targetUser.role = role;
   }
+
   if (balance !== undefined && !isNaN(parseFloat(balance)) && parseFloat(balance) >= 0) {
-    targetUser.balance = parseFloat(balance);
+    const desiredBalance = parseFloat(parseFloat(balance).toFixed(2));
+    const delta = parseFloat((desiredBalance - oldBalance).toFixed(2));
+    if (Math.abs(delta) >= 0.01) {
+      const adjResult = await WalletLedgerService.adminAdjustBalance(
+        targetUserId,
+        Math.abs(delta),
+        delta > 0 ? 'ADMIN_CREDIT' : 'ADMIN_DEBIT',
+        auth.caller.id,
+        'Account balance updated via User Management'
+      );
+      if (!adjResult.success) {
+        return res.status(400).json({ error: adjResult.message });
+      }
+      if (adjResult.wallet) {
+        targetUser.balance = adjResult.wallet.availableBalance;
+        broadcastEvent('WALLET_UPDATED', {
+          userId: targetUserId,
+          wallet: adjResult.wallet,
+        });
+      }
+    }
   }
 
   logAuditEvent(
@@ -2898,7 +3005,7 @@ app.post('/api/admin/users/:id/update', (req: Request, res: Response) => {
     'USER_UPDATED',
     'player',
     targetUserId,
-    `Updated user ${targetUser.displayName} (Role: ${oldRole} -> ${targetUser.role}, Balance: $${oldBalance} -> $${targetUser.balance})`,
+    `Updated user ${targetUser.displayName} (Role: ${oldRole} -> ${targetUser.role}, Balance: ${oldBalance.toFixed(2)} -> ${targetUser.balance.toFixed(2)} ETB)`,
     'warning'
   );
 
@@ -2907,7 +3014,7 @@ app.post('/api/admin/users/:id/update', (req: Request, res: Response) => {
 });
 
 // Adjust user wallet balance (Add or Deduct funds)
-app.post('/api/admin/users/:id/adjust-balance', (req: Request, res: Response) => {
+app.post('/api/admin/users/:id/adjust-balance', async (req: Request, res: Response) => {
   const auth = verifyHostAuthorization(req);
   if (!auth.authorized || auth.caller?.role !== 'admin') {
     return res.status(403).json({ error: 'Super Administrator permission required to adjust balances.' });
@@ -2927,11 +3034,22 @@ app.post('/api/admin/users/:id/adjust-balance', (req: Request, res: Response) =>
 
   const isDeduct = type === 'deduct';
   const previousBalance = targetUser.balance;
-  if (isDeduct && targetUser.balance < numAmount) {
-    return res.status(400).json({ error: `Cannot deduct $${numAmount.toFixed(2)}. User balance is only $${targetUser.balance.toFixed(2)}.` });
+
+  const adjResult = await WalletLedgerService.adminAdjustBalance(
+    targetUserId,
+    numAmount,
+    isDeduct ? 'ADMIN_DEBIT' : 'ADMIN_CREDIT',
+    auth.caller.id,
+    reason || 'Administrative adjustment'
+  );
+
+  if (!adjResult.success) {
+    return res.status(400).json({ error: adjResult.message });
   }
 
-  targetUser.balance = parseFloat((targetUser.balance + (isDeduct ? -numAmount : numAmount)).toFixed(2));
+  if (adjResult.wallet) {
+    targetUser.balance = adjResult.wallet.availableBalance;
+  }
 
   logAuditEvent(
     auth.caller.id,
@@ -2940,11 +3058,17 @@ app.post('/api/admin/users/:id/adjust-balance', (req: Request, res: Response) =>
     'BALANCE_ADJUSTED',
     'player',
     targetUserId,
-    `${isDeduct ? 'Deducted' : 'Credited'} $${numAmount.toFixed(2)} to ${targetUser.displayName} (Balance: $${previousBalance.toFixed(2)} -> $${targetUser.balance.toFixed(2)})${reason ? ` - Reason: ${reason}` : ''}`,
+    `${isDeduct ? 'Deducted' : 'Credited'} ${numAmount.toFixed(2)} ETB to ${targetUser.displayName} (Balance: ${previousBalance.toFixed(2)} -> ${targetUser.balance.toFixed(2)})${reason ? ` - Reason: ${reason}` : ''}`,
     'info'
   );
 
   saveStateToDisk();
+
+  broadcastEvent('WALLET_UPDATED', {
+    userId: targetUserId,
+    wallet: adjResult.wallet,
+  });
+
   res.json({ success: true, user: targetUser, previousBalance, newBalance: targetUser.balance });
 });
 
@@ -3190,7 +3314,7 @@ app.post('/api/admin/claims/reject', (req: Request, res: Response) => {
 });
 
 // Stage 6: Confirm Winner (Admin officially confirms winner after verification)
-app.post('/api/admin/claims/confirm-winner', (req: Request, res: Response) => {
+app.post('/api/admin/claims/confirm-winner', async (req: Request, res: Response) => {
   const auth = verifyHostAuthorization(req);
   if (!auth.authorized) {
     return res.status(403).json({ error: auth.error });
@@ -3241,10 +3365,14 @@ app.post('/api/admin/claims/confirm-winner', (req: Request, res: Response) => {
     w.prizeAmount = splitPrize;
   });
 
-  // Credit winner user account
+  // Credit winner user account and ledger
   const winnerUser = users.get(claim.userId);
   if (winnerUser) {
-    winnerUser.balance += splitPrize;
+    if (splitPrize > 0) {
+      await WalletLedgerService.creditGameWin(claim.userId, splitPrize, currentGame.id, claim.cardId);
+      const userWallet = WalletLedgerService.getWallet(claim.userId);
+      winnerUser.balance = userWallet.availableBalance;
+    }
     winnerUser.stats.bingosWon += 1;
   }
 
@@ -3319,7 +3447,7 @@ app.post('/api/admin/game/finalize-winners', (req: Request, res: Response) => {
 });
 
 // Legacy resolve claim endpoint (maintained for backwards compatibility)
-app.post('/api/admin/claims/resolve', (req: Request, res: Response) => {
+app.post('/api/admin/claims/resolve', async (req: Request, res: Response) => {
   const auth = verifyHostAuthorization(req);
   if (!auth.authorized) {
     return res.status(403).json({ error: auth.error });
@@ -3379,6 +3507,16 @@ app.post('/api/admin/claims/resolve', (req: Request, res: Response) => {
     currentGame.winners.forEach((w) => {
       w.prizeAmount = splitPrize;
     });
+
+    const winnerUser = users.get(claim.userId);
+    if (winnerUser) {
+      if (splitPrize > 0) {
+        await WalletLedgerService.creditGameWin(claim.userId, splitPrize, currentGame.id, claim.cardId);
+        const userWallet = WalletLedgerService.getWallet(claim.userId);
+        winnerUser.balance = userWallet.availableBalance;
+      }
+      winnerUser.stats.bingosWon += 1;
+    }
 
     stopAutoCaller();
     clearAllGameTimers();
@@ -3679,6 +3817,808 @@ app.post('/api/admin/service/start', (req: Request, res: Response) => {
   });
 });
 
+// ==========================================
+// REAL-MONEY WALLET & PAYMENT API ENDPOINTS
+// ==========================================
+
+// Authenticate player or caller against authoritative users registry
+function verifyAuthenticatedPlayer(req: Request): { authenticated: boolean; user?: User; error?: string } {
+  const userId =
+    (req.headers['x-user-id'] as string) ||
+    (typeof req.query.userId === 'string' ? req.query.userId : '') ||
+    (req.body && typeof req.body.userId === 'string' ? req.body.userId : '');
+  const cleanId = (userId || '').trim();
+  if (!cleanId) {
+    return { authenticated: false, error: 'Authentication required. Please sign in.' };
+  }
+  const user = users.get(cleanId);
+  if (!user) {
+    return { authenticated: false, error: 'Authenticated player account not found.' };
+  }
+  return { authenticated: true, user };
+}
+
+// Public-to-authenticated Telebirr deposit receiving instructions (configured by admins, zero secrets)
+app.get('/api/wallet/deposit-config', (_req: Request, res: Response) => {
+  const config = WalletLedgerService.getTelebirrConfig();
+  res.json({
+    success: true,
+    config,
+  });
+});
+
+// Get current player's wallet & recent transactions
+app.get('/api/wallet', (req: Request, res: Response) => {
+  const auth = verifyAuthenticatedPlayer(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({ success: false, message: auth.error });
+  }
+  const userId = auth.user.id;
+  const wallet = WalletLedgerService.getWallet(userId);
+  const recentTransactions = WalletLedgerService.getTransactions(userId, 15);
+
+  auth.user.balance = wallet.availableBalance;
+
+  res.json({
+    success: true,
+    wallet,
+    recentTransactions,
+  });
+});
+
+// Get player full transaction ledger history
+app.get('/api/wallet/transactions', (req: Request, res: Response) => {
+  const auth = verifyAuthenticatedPlayer(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({ success: false, message: auth.error });
+  }
+  const limit = parseInt(req.query.limit as string, 10) || 50;
+  const list = WalletLedgerService.getTransactions(auth.user.id, limit);
+
+  res.json({
+    success: true,
+    transactions: list,
+  });
+});
+
+// Initiate & verify Telebirr deposit via Verify.et provider adapter
+app.post('/api/wallet/deposit/verify', async (req: Request, res: Response) => {
+  const auth = verifyAuthenticatedPlayer(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({ success: false, statusCode: 'VERIFICATION_FAILED', message: auth.error });
+  }
+  const userId = auth.user.id;
+  const { transactionNumber, amount, expectedAmount, senderPhone } = req.body;
+  const requestedAmount = parseFloat(amount ?? expectedAmount);
+
+  if (isNaN(requestedAmount) || requestedAmount <= 0) {
+    return res.status(400).json({
+      success: false,
+      statusCode: 'VERIFICATION_FAILED',
+      message: 'Please enter a valid deposit amount in ETB.',
+    });
+  }
+
+  if (!transactionNumber || typeof transactionNumber !== 'string') {
+    return res.status(400).json({
+      success: false,
+      statusCode: 'VERIFICATION_FAILED',
+      message: 'Telebirr transaction number is required.',
+    });
+  }
+
+  const result = await WalletLedgerService.initiateDeposit(
+    userId,
+    requestedAmount,
+    transactionNumber,
+    senderPhone
+  );
+
+  // Synchronize player balance in memory if credited and persist deposit/wallet state
+  if (result.wallet) {
+    auth.user.balance = result.wallet.availableBalance;
+  }
+  saveStateToDisk();
+
+  if (result.deposit) {
+    broadcastEvent('DEPOSIT_UPDATED', {
+      userId,
+      deposit: result.deposit,
+      statusCode: result.statusCode,
+    });
+  }
+
+  if (result.success && result.wallet) {
+    broadcastEvent('WALLET_UPDATED', {
+      userId,
+      wallet: result.wallet,
+      transaction: result.transaction,
+      deposit: result.deposit,
+    });
+  }
+
+  return res.status(result.httpStatus || (result.success ? 200 : 400)).json(result);
+});
+
+// Get / poll a specific deposit status (supports ?poll=true for HTTP 202 queued Verify.et verifications)
+app.get('/api/wallet/deposits/:id', async (req: Request, res: Response) => {
+  const auth = verifyAuthenticatedPlayer(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({ success: false, message: auth.error });
+  }
+
+  const shouldPoll = req.query.poll === 'true';
+  const result = shouldPoll
+    ? await WalletLedgerService.pollDepositStatus(req.params.id, auth.user.id, auth.user.role === 'admin')
+    : (() => {
+        const dep = WalletLedgerService.getDepositById(req.params.id);
+        if (!dep) {
+          return { success: false, httpStatus: 404, statusCode: 'TRANSACTION_NOT_FOUND', message: 'Deposit not found.' };
+        }
+        if (dep.userId !== auth.user.id && auth.user.role !== 'admin') {
+          return { success: false, httpStatus: 403, statusCode: 'VERIFICATION_FAILED', message: 'Access denied.' };
+        }
+        return {
+          success: dep.status === 'VERIFIED' || dep.status === 'PENDING',
+          httpStatus: 200,
+          statusCode: dep.status === 'VERIFIED' ? 'DEPOSIT_SUCCESSFUL' : 'PENDING_VERIFICATION',
+          message: dep.statusMessage || dep.status,
+          deposit: dep,
+          wallet: dep.status === 'VERIFIED' ? WalletLedgerService.getWallet(dep.userId) : undefined,
+        };
+      })();
+
+  if (result.wallet) {
+    const owner = users.get(result.wallet.userId);
+    if (owner) {
+      owner.balance = result.wallet.availableBalance;
+    }
+    broadcastEvent('WALLET_UPDATED', {
+      userId: result.wallet.userId,
+      wallet: result.wallet,
+      deposit: result.deposit,
+    });
+  }
+  if (result.deposit) {
+    saveStateToDisk();
+    broadcastEvent('DEPOSIT_UPDATED', {
+      userId: result.deposit.userId,
+      deposit: result.deposit,
+      statusCode: result.statusCode,
+    });
+  }
+
+  return res.status(result.httpStatus || 200).json(result);
+});
+
+// Verify.et asynchronous webhook callback (HMAC-SHA256 verified over raw body + duplicate eventId protection)
+app.post('/api/webhooks/verify-et', async (req: Request, res: Response) => {
+  const rawBody = Buffer.isBuffer(req.body)
+    ? req.body.toString('utf8')
+    : typeof req.body === 'string'
+    ? req.body
+    : JSON.stringify(req.body || {});
+
+  const result = await WalletLedgerService.handleWebhookDelivery(
+    'verify_et',
+    rawBody,
+    req.headers as Record<string, string | string[] | undefined>
+  );
+
+  if (!result.ok) {
+    return res.status(result.httpStatus).json({ success: false, error: result.error });
+  }
+
+  if (result.deposit) {
+    if (result.wallet) {
+      const owner = users.get(result.wallet.userId);
+      if (owner) {
+        owner.balance = result.wallet.availableBalance;
+      }
+      broadcastEvent('WALLET_UPDATED', {
+        userId: result.wallet.userId,
+        wallet: result.wallet,
+        transaction: result.transaction,
+        deposit: result.deposit,
+      });
+    }
+    saveStateToDisk();
+    broadcastEvent('DEPOSIT_UPDATED', {
+      userId: result.deposit.userId,
+      deposit: result.deposit,
+    });
+  } else {
+    saveStateToDisk();
+  }
+
+  return res.status(result.httpStatus || 204).send();
+});
+
+// Request withdrawal (validates eligibility/limits, deduplicates idempotency key, and reserves available balance)
+app.post('/api/wallet/withdraw', async (req: Request, res: Response) => {
+  const auth = verifyAuthenticatedPlayer(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({ success: false, message: auth.error });
+  }
+  const userId = auth.user.id;
+  const { amount, accountIdentifier, accountName, payoutMethod, idempotencyKey } = req.body;
+  const headerIdemp = typeof req.headers['idempotency-key'] === 'string' ? req.headers['idempotency-key'] : undefined;
+
+  const numAmount = parseFloat(amount);
+  if (isNaN(numAmount) || numAmount <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'A valid withdrawal amount is required.',
+    });
+  }
+
+  if (!accountIdentifier || typeof accountIdentifier !== 'string') {
+    return res.status(400).json({
+      success: false,
+      message: 'Telebirr account number / phone number is required.',
+    });
+  }
+
+  if (!accountName || typeof accountName !== 'string' || accountName.trim().length < 2) {
+    return res.status(400).json({
+      success: false,
+      message: 'Telebirr account holder name is required.',
+    });
+  }
+
+  const accountEligible = !Boolean((auth.user as any).isSuspended || (auth.user as any).isBanned);
+
+  const result = await WalletLedgerService.requestWithdrawal(
+    userId,
+    numAmount,
+    accountIdentifier,
+    accountName,
+    payoutMethod || 'telebirr',
+    idempotencyKey || headerIdemp,
+    accountEligible
+  );
+
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  if (result.wallet) {
+    auth.user.balance = result.wallet.availableBalance;
+  }
+  if (!result.duplicate) {
+    saveStateToDisk();
+    broadcastEvent('WALLET_UPDATED', {
+      userId,
+      wallet: result.wallet,
+      withdrawal: result.withdrawal,
+    });
+  }
+
+  res.json(result);
+});
+
+// Get user withdrawal requests
+app.get('/api/wallet/withdrawals', (req: Request, res: Response) => {
+  const auth = verifyAuthenticatedPlayer(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({ success: false, message: auth.error });
+  }
+  const list = WalletLedgerService.getWithdrawals(auth.user.id);
+
+  res.json({
+    success: true,
+    withdrawals: list,
+  });
+});
+
+// --- Admin Financial & Payment Endpoints (STRICTLY ADMIN ONLY) ---
+
+// Get financial overview summary metrics
+app.get('/api/admin/financial/overview', (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const overview = WalletLedgerService.getFinancialOverview();
+  res.json({
+    success: true,
+    overview,
+  });
+});
+
+// Get all withdrawals enriched with player wallet balances (admin view)
+app.get('/api/admin/financial/withdrawals', (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const statusFilter = req.query.status as string;
+  let list = WalletLedgerService.getAdminWithdrawals(users);
+  if (statusFilter && statusFilter !== 'ALL') {
+    list = list.filter((w) => w.status === statusFilter);
+  }
+
+  res.json({
+    success: true,
+    withdrawals: list,
+  });
+});
+
+// Stage 2: Admin moves PENDING withdrawal -> UNDER_REVIEW
+app.post('/api/admin/financial/withdrawals/:id/review', async (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized || !auth.caller) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const result = await WalletLedgerService.moveWithdrawalToUnderReview(
+    req.params.id,
+    auth.caller.id,
+    req.body?.note
+  );
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  saveStateToDisk();
+  if (result.wallet) {
+    broadcastEvent('WALLET_UPDATED', {
+      userId: result.wallet.userId,
+      wallet: result.wallet,
+      withdrawal: result.withdrawal,
+    });
+  }
+
+  res.json(result);
+});
+
+// Stage 3: Admin approves withdrawal (PENDING | UNDER_REVIEW -> APPROVED; keeps funds reserved)
+app.post('/api/admin/financial/withdrawals/:id/approve', async (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized || !auth.caller) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const result = await WalletLedgerService.approveWithdrawal(
+    req.params.id,
+    auth.caller.id,
+    req.body?.note
+  );
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  saveStateToDisk();
+  if (result.wallet) {
+    broadcastEvent('WALLET_UPDATED', {
+      userId: result.wallet.userId,
+      wallet: result.wallet,
+      withdrawal: result.withdrawal,
+    });
+  }
+
+  res.json(result);
+});
+
+// Stage 4: Admin marks APPROVED withdrawal -> PROCESSING (Processing Payment)
+app.post('/api/admin/financial/withdrawals/:id/processing', async (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized || !auth.caller) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const result = await WalletLedgerService.markWithdrawalProcessing(
+    req.params.id,
+    auth.caller.id,
+    req.body?.note
+  );
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  saveStateToDisk();
+  if (result.wallet) {
+    broadcastEvent('WALLET_UPDATED', {
+      userId: result.wallet.userId,
+      wallet: result.wallet,
+      withdrawal: result.withdrawal,
+    });
+  }
+
+  res.json(result);
+});
+
+// Stage 5: Admin records outgoing Telebirr transaction reference & marks withdrawal PAID
+app.post('/api/admin/financial/withdrawals/:id/mark-paid', async (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized || !auth.caller) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const { paymentReference, note } = req.body || {};
+  const result = await WalletLedgerService.markWithdrawalPaid(
+    req.params.id,
+    auth.caller.id,
+    paymentReference,
+    note
+  );
+
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  saveStateToDisk();
+  if (result.wallet) {
+    const user = users.get(result.wallet.userId);
+    if (user) {
+      user.balance = result.wallet.availableBalance;
+    }
+    broadcastEvent('WALLET_UPDATED', {
+      userId: result.wallet.userId,
+      wallet: result.wallet,
+      transaction: result.transaction,
+      withdrawal: result.withdrawal,
+    });
+  }
+
+  res.json(result);
+});
+
+// Admin rejects unsettled withdrawal (restores reserved balance to availableBalance once)
+app.post('/api/admin/financial/withdrawals/:id/reject', async (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized || !auth.caller) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const result = await WalletLedgerService.rejectWithdrawal(
+    req.params.id,
+    auth.caller.id,
+    req.body?.reason
+  );
+
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  if (result.wallet) {
+    const user = users.get(result.wallet.userId);
+    if (user) {
+      user.balance = result.wallet.availableBalance;
+    }
+    broadcastEvent('WALLET_UPDATED', {
+      userId: result.wallet.userId,
+      wallet: result.wallet,
+      transaction: result.transaction,
+      withdrawal: result.withdrawal,
+    });
+  }
+
+  saveStateToDisk();
+  res.json(result);
+});
+
+// Admin marks unsettled withdrawal as FAILED (restores reserved balance to availableBalance once)
+app.post('/api/admin/financial/withdrawals/:id/fail', async (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized || !auth.caller) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const result = await WalletLedgerService.failWithdrawal(
+    req.params.id,
+    auth.caller.id,
+    req.body?.reason
+  );
+
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  if (result.wallet) {
+    const user = users.get(result.wallet.userId);
+    if (user) {
+      user.balance = result.wallet.availableBalance;
+    }
+    broadcastEvent('WALLET_UPDATED', {
+      userId: result.wallet.userId,
+      wallet: result.wallet,
+      transaction: result.transaction,
+      withdrawal: result.withdrawal,
+    });
+  }
+
+  saveStateToDisk();
+  res.json(result);
+});
+
+// Get user deposit history
+app.get('/api/wallet/deposits', (req: Request, res: Response) => {
+  const auth = verifyAuthenticatedPlayer(req);
+  if (!auth.authenticated || !auth.user) {
+    return res.status(401).json({ success: false, message: auth.error });
+  }
+  const limit = parseInt(req.query.limit as string, 10) || 50;
+  const list = WalletLedgerService.getDeposits(auth.user.id, limit);
+
+  res.json({
+    success: true,
+    deposits: list,
+  });
+});
+
+// Get all deposits (admin view)
+app.get('/api/admin/financial/deposits', (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const limit = parseInt(req.query.limit as string, 10) || 100;
+  const userIdFilter = req.query.userId as string;
+  const list = WalletLedgerService.getDeposits(userIdFilter || undefined, limit).map((d) => {
+    const owner = users.get(d.userId);
+    return {
+      ...d,
+      playerDisplayName: owner?.displayName,
+      playerUsername: owner?.username,
+    };
+  });
+
+  res.json({
+    success: true,
+    deposits: list,
+  });
+});
+
+// Admin manually approves a flagged deposit
+app.post('/api/admin/financial/deposits/:id/approve', async (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized || !auth.caller) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const result = await WalletLedgerService.adminApproveDeposit(
+    req.params.id,
+    auth.caller.id,
+    req.body?.note
+  );
+
+  if (!result.success) {
+    return res.status(result.httpStatus || 400).json(result);
+  }
+
+  if (result.wallet) {
+    const owner = users.get(result.wallet.userId);
+    if (owner) {
+      owner.balance = result.wallet.availableBalance;
+    }
+    broadcastEvent('WALLET_UPDATED', {
+      userId: result.wallet.userId,
+      wallet: result.wallet,
+      transaction: result.transaction,
+      deposit: result.deposit,
+    });
+  }
+  if (result.deposit) {
+    broadcastEvent('DEPOSIT_UPDATED', {
+      userId: result.deposit.userId,
+      deposit: result.deposit,
+      statusCode: result.statusCode,
+    });
+  }
+  saveStateToDisk();
+
+  return res.json(result);
+});
+
+// Admin manually rejects a flagged/unverified deposit
+app.post('/api/admin/financial/deposits/:id/reject', async (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized || !auth.caller) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const result = await WalletLedgerService.adminRejectDeposit(
+    req.params.id,
+    auth.caller.id,
+    req.body?.reason
+  );
+
+  if (!result.success) {
+    return res.status(result.httpStatus || 400).json(result);
+  }
+
+  if (result.deposit) {
+    broadcastEvent('DEPOSIT_UPDATED', {
+      userId: result.deposit.userId,
+      deposit: result.deposit,
+      statusCode: result.statusCode,
+    });
+  }
+  saveStateToDisk();
+
+  return res.json(result);
+});
+
+// Get system-wide transaction ledger (audit view)
+app.get('/api/admin/financial/transactions', (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const limit = parseInt(req.query.limit as string, 10) || 100;
+  const userIdFilter = req.query.userId as string;
+
+  const allTxs = userIdFilter
+    ? WalletLedgerService.getTransactions(userIdFilter, limit)
+    : WalletLedgerService.getAllTransactions(limit);
+
+  res.json({
+    success: true,
+    transactions: allTxs,
+  });
+});
+
+// Get financial audit logs
+app.get('/api/admin/financial/audit-logs', (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const logs = WalletLedgerService.getAuditLogs(150);
+  res.json({
+    success: true,
+    logs,
+  });
+});
+
+// Wallet & ledger reconciliation endpoint
+app.get('/api/admin/financial/reconciliation', (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const reconciliation = WalletLedgerService.reconcileWallets();
+  res.json({
+    success: true,
+    reconciliation,
+  });
+});
+
+// Financial report summary endpoint with optional ?from=&to= timestamps
+app.get('/api/admin/financial/reports', (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const rawFrom = req.query.from as string | undefined;
+  const rawTo = req.query.to as string | undefined;
+  const fromDate = rawFrom ? Number(rawFrom) : undefined;
+  const toDate = rawTo ? Number(rawTo) : undefined;
+
+  const report = WalletLedgerService.getFinancialReport(
+    fromDate && !isNaN(fromDate) ? fromDate : undefined,
+    toDate && !isNaN(toDate) ? toDate : undefined
+  );
+  res.json({
+    success: true,
+    report,
+  });
+});
+
+// Get Telebirr receiving account & payment settings (Admin)
+app.get('/api/admin/financial/telebirr-config', (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  res.json({
+    success: true,
+    config: WalletLedgerService.getTelebirrConfig(),
+  });
+});
+
+// Update Telebirr receiving account & payment limits/availability settings (Admin only)
+app.post('/api/admin/financial/telebirr-config', (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized || !auth.caller) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const result = WalletLedgerService.updateTelebirrConfig(req.body || {}, auth.caller.id);
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  saveStateToDisk();
+  broadcastEvent('TELEBIRR_CONFIG_UPDATED', result.config);
+
+  res.json(result);
+});
+
+// Get payment provider status and configurations (safe: no secret API keys returned)
+app.get('/api/admin/financial/provider-config', (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const providers = paymentProviderRegistry.listProviders();
+  res.json({
+    success: true,
+    providers,
+  });
+});
+
+// Update payment provider configuration (enable/disable or set default without exposing or storing secrets)
+app.post('/api/admin/financial/provider-config/:providerId', (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const providerId = req.params.providerId;
+  const { isEnabled, isDefault } = req.body;
+  const updated = paymentProviderRegistry.updateConfig(providerId, { isEnabled, isDefault });
+  if (!updated) {
+    return res.status(404).json({ error: `Payment provider '${providerId}' not found.` });
+  }
+
+  saveStateToDisk();
+  res.json({
+    success: true,
+    provider: updated,
+    providers: paymentProviderRegistry.listProviders(),
+  });
+});
+
+// Admin manual balance adjustment
+app.post('/api/admin/financial/adjust-balance', async (req: Request, res: Response) => {
+  const auth = verifyFinancialAdminAuthorization(req);
+  if (!auth.authorized || !auth.caller) {
+    return res.status(auth.statusCode).json({ error: auth.error });
+  }
+
+  const { targetUserId, amount, type, reason } = req.body;
+  if (!targetUserId || !amount || !type || !reason) {
+    return res.status(400).json({ error: 'targetUserId, amount, type (ADMIN_CREDIT/ADMIN_DEBIT), and reason are required.' });
+  }
+
+  const result = await WalletLedgerService.adminAdjustBalance(
+    targetUserId,
+    parseFloat(amount),
+    type,
+    auth.caller.id,
+    reason
+  );
+
+  if (!result.success) {
+    return res.status(400).json(result);
+  }
+
+  if (result.wallet) {
+    const user = users.get(targetUserId);
+    if (user) {
+      user.balance = result.wallet.availableBalance;
+    }
+    broadcastEvent('WALLET_UPDATED', {
+      userId: targetUserId,
+      wallet: result.wallet,
+    });
+  }
+
+  saveStateToDisk();
+
+  res.json(result);
+});
 
 // --- Vite Integration & Static Hosting ---
 async function startServer() {

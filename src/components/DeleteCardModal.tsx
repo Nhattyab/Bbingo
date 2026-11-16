@@ -2,6 +2,7 @@ import React from 'react';
 import { Trash2, AlertTriangle, X } from 'lucide-react';
 import { BingoCard } from '../types/bingo';
 import { getDisplayCardNumber } from '../utils/bingoRules';
+import { useLanguage } from '../context/LanguageContext';
 
 interface DeleteCardModalProps {
   card: BingoCard | null;
@@ -18,6 +19,8 @@ export const DeleteCardModal: React.FC<DeleteCardModalProps> = ({
   onConfirm,
   isDeleting,
 }) => {
+  const { t, language } = useLanguage();
+
   if (!isOpen || !card) return null;
 
   return (
@@ -38,9 +41,11 @@ export const DeleteCardModal: React.FC<DeleteCardModalProps> = ({
             </div>
             <div>
               <h3 id="delete-card-title" className="font-bold text-sm">
-                Delete Bingo Card?
+                {language === 'am' ? 'የቢንጎ ካርድ ይሰረዝ?' : 'Delete Bingo Card?'}
               </h3>
-              <p className="text-[11px] text-rose-100">Confirm permanent card removal</p>
+              <p className="text-[11px] text-rose-100">
+                {language === 'am' ? 'ካርዱን እስከመጨረሻው የማጥፋት ማረጋገጫ' : 'Confirm permanent card removal'}
+              </p>
             </div>
           </div>
           <button
@@ -56,7 +61,9 @@ export const DeleteCardModal: React.FC<DeleteCardModalProps> = ({
         {/* Body */}
         <div className="p-5 space-y-4 text-xs text-slate-700">
           <div className="text-center p-3 bg-slate-50 rounded-2xl border border-slate-200">
-            <span className="text-[11px] text-slate-500 font-medium block mb-1">Target Card ID:</span>
+            <span className="text-[11px] text-slate-500 font-medium block mb-1">
+              {language === 'am' ? 'የካርድ መለያ:' : 'Target Card ID:'}
+            </span>
             <span className="font-mono text-base font-extrabold text-slate-900 bg-white px-3 py-1 rounded-xl border border-slate-200 inline-block shadow-2xs">
               #{getDisplayCardNumber(card.id)}
             </span>
@@ -67,11 +74,15 @@ export const DeleteCardModal: React.FC<DeleteCardModalProps> = ({
             <div className="space-y-1 text-[11px] leading-relaxed">
               {card.isRegistered ? (
                 <p>
-                  This card is currently <span className="font-bold">registered</span> for the championship game. Deleting it will remove it from the current game session and deduct it from your active cards.
+                  {language === 'am'
+                    ? 'ይህ ካርድ በአሁኑ ጊዜ ለጨዋታው ተመዝግቧል። መሰረዝ ይህንን ካርድ ከአሁኑ ክፍለ-ጊዜ ያስወጣዋል እንዲሁም ከተሳታፊ ካርዶችዎ ይቀንሳል።'
+                    : 'This card is currently registered for the game. Deleting it will remove it from the current game session and deduct it from your active cards.'}
                 </p>
               ) : (
                 <p>
-                  This card is <span className="font-bold">unregistered</span>. Deleting it will permanently remove it from your selection.
+                  {language === 'am'
+                    ? 'ይህ ካርድ አልተመዘገበም። መሰረዝ ከምርጫዎችዎ ውስጥ እስከመጨረሻው ያስወግደዋል።'
+                    : 'This card is unregistered. Deleting it will permanently remove it from your selection.'}
                 </p>
               )}
             </div>
@@ -85,7 +96,7 @@ export const DeleteCardModal: React.FC<DeleteCardModalProps> = ({
               onClick={onClose}
               className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
             >
-              Cancel
+              {language === 'am' ? 'ሰርዝ' : 'Cancel'}
             </button>
             <button
               type="button"
@@ -94,7 +105,11 @@ export const DeleteCardModal: React.FC<DeleteCardModalProps> = ({
               className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-700 active:scale-95 text-white shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>{isDeleting ? 'Deleting...' : 'Confirm Delete'}</span>
+              <span>
+                {isDeleting
+                  ? (language === 'am' ? 'በመሰረዝ ላይ...' : 'Deleting...')
+                  : (language === 'am' ? 'መሰረዝን አረጋግጥ' : 'Confirm Delete')}
+              </span>
             </button>
           </div>
         </div>

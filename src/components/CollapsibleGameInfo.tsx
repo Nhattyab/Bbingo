@@ -20,6 +20,7 @@ import {
 import { BingoBall, GameSession, Winner, BlockedCard, WinningPattern } from '../types/bingo';
 import { WINNING_RULE_NAMES, getDisplayCardNumber } from '../utils/bingoRules';
 import { BingoBoard75 } from './BingoBoard75';
+import { useLanguage } from '../context/LanguageContext';
 
 interface CollapsibleGameInfoProps {
   game: GameSession | null;
@@ -65,49 +66,51 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
     );
   }
 
+  const { t, getRuleName, getStatusLabel } = useLanguage();
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'next_game':
       case 'setup':
         // User Requirement 9: When game is set up, status must be Next Game
-        return { label: 'Next Game', bg: 'bg-slate-100 text-slate-700 border-slate-300' };
+        return { label: t.nextGame, bg: 'bg-slate-100 text-slate-700 border-slate-300' };
       case 'registration_open':
-        return { label: 'Registration Open', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+        return { label: getStatusLabel('registration_open'), bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
       case 'registration_closed':
-        return { label: 'Registration Closed', bg: 'bg-amber-50 text-amber-800 border-amber-300' };
+        return { label: getStatusLabel('registration_closed'), bg: 'bg-amber-50 text-amber-800 border-amber-300' };
       case 'starting_countdown':
       case 'pre_game_countdown':
         return {
-          label: countdownSeconds && countdownSeconds > 0 ? `Starting in ${countdownSeconds}s` : 'Starting Soon',
+          label: countdownSeconds && countdownSeconds > 0 ? `${t.startsIn} ${countdownSeconds}s` : t.startingSoon,
           bg: 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse font-black',
         };
       case 'running':
       case 'in_progress':
-        return { label: 'In Progress', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+        return { label: getStatusLabel('running'), bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
       case 'paused':
-        return { label: 'Paused', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
+        return { label: getStatusLabel('paused'), bg: 'bg-amber-50 text-amber-700 border-amber-200' };
       case 'stopped':
-        return { label: 'Stopped', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
+        return { label: getStatusLabel('stopped'), bg: 'bg-rose-50 text-rose-700 border-rose-200' };
       case 'claim_review':
       case 'checking_winners':
-        return { label: 'Checking Winning Cards', bg: 'bg-purple-100 text-purple-900 border-purple-300 animate-pulse font-bold' };
+        return { label: getStatusLabel('checking_winners'), bg: 'bg-purple-100 text-purple-900 border-purple-300 animate-pulse font-bold' };
       case 'game_completed':
       case 'winner_confirmed':
       case 'completed':
         return {
-          label: completionSeconds && completionSeconds > 0 ? `Game Completed (${completionSeconds}s)` : 'Game Completed (30s)',
+          label: getStatusLabel('game_completed'),
           bg: 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold',
         };
       case 'cancelled':
-        return { label: 'Cancelled', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
+        return { label: getStatusLabel('cancelled'), bg: 'bg-rose-50 text-rose-700 border-rose-200' };
       default:
-        return { label: status.replace(/_/g, ' '), bg: 'bg-slate-50 text-slate-700 border-slate-200' };
+        return { label: getStatusLabel(status), bg: 'bg-slate-50 text-slate-700 border-slate-200' };
     }
   };
 
   const statusInfo = getStatusBadge(game.status);
   const activeRule = game.activeWinningRule || 'not_set';
-  const ruleName = activeRule === 'not_set' ? 'Not Set' : WINNING_RULE_NAMES[activeRule] || activeRule;
+  const ruleName = getRuleName(activeRule);
 
   const handleCopyCode = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -134,7 +137,7 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-bold text-slate-900 text-xs sm:text-sm tracking-tight truncate">
-                  GAME - {ruleName}
+                  {t.gameWord} - {ruleName}
                 </span>
                 <span
                   className={`text-[9px] sm:text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${statusInfo.bg}`}
@@ -143,7 +146,7 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
                 </span>
               </div>
               <div className="text-[11px] sm:text-xs font-mono font-semibold text-indigo-700 mt-0.5 tracking-tight truncate">
-                Gamecode - {game.gameCode}
+                {t.gameCodeLabel} - {game.gameCode}
               </div>
             </div>
           </div>
@@ -155,7 +158,7 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
             className="absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 transition-colors cursor-pointer border border-indigo-100/80"
             aria-expanded={isExpanded}
           >
-            <span>{isExpanded ? 'Show Less' : 'Show More'}</span>
+            <span>{isExpanded ? t.showLess : t.showMore}</span>
             {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
         </div>
@@ -172,7 +175,7 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
                 <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
                 <div className="min-w-0">
                   <span className="font-bold text-[10px] uppercase tracking-wider text-amber-900 block">
-                    Active Winning Rule
+                    {t.activeWinningRule}
                   </span>
                   <div className="font-black text-slate-900 text-xs sm:text-sm truncate">
                     {ruleName}
@@ -295,7 +298,7 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
                       <Trophy className="w-3.5 h-3.5" />
                     </div>
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                      <span>Game Winners</span>
+                      <span>{t.gameWinners}</span>
                       {winnersList.length > 0 && (
                         <span className="font-mono text-[9px] font-bold bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded-full">
                           {winnersList.length}
@@ -312,14 +315,14 @@ export const CollapsibleGameInfo: React.FC<CollapsibleGameInfoProps> = ({
                     title="View blocked cards list"
                   >
                     <ShieldAlert className="w-3 h-3 text-rose-600" />
-                    <span>{blockedList.length} Blocked</span>
+                    <span>{blockedList.length} {t.cardBlocked}</span>
                   </button>
                 </div>
 
                 {/* Winners List in usual pattern with compact text sizes */}
                 {winnersList.length === 0 ? (
                   <div className="py-2 text-center text-[11px] text-slate-400 bg-slate-50/60 rounded-lg border border-dashed border-slate-200">
-                    No confirmed winners yet in this game.
+                    {t.noWinnersYet}
                   </div>
                 ) : (
                   <div className="space-y-1 pt-1 border-t border-amber-50">

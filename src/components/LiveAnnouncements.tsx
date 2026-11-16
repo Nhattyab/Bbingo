@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertCircle, Sparkles } from 'lucide-react';
 import { GameSession } from '../types/bingo';
+import { useLanguage } from '../context/LanguageContext';
 
 interface LiveAnnouncementsProps {
   announcements?: string[];
@@ -15,9 +16,10 @@ export const LiveAnnouncements: React.FC<LiveAnnouncementsProps> = ({
   game,
   claimWindowSeconds,
 }) => {
-  // Determine precise short notification message based on authoritative game state & announcements
-  let displayMessage = 'Next game';
+  const { translateAnnouncement, t } = useLanguage();
 
+  // Determine base English message
+  let displayMessage = 'Next game';
   const firstAnnouncement = announcements?.[0];
 
   if (isServiceSuspended || game?.isServiceSuspended) {
@@ -77,22 +79,24 @@ export const LiveAnnouncements: React.FC<LiveAnnouncementsProps> = ({
     }
   }
 
+  const localizedMessage = translateAnnouncement(displayMessage, claimWindowSeconds);
+
   return (
     <div
-      aria-label="Live Game Notification"
+      aria-label={t.liveNotification}
       className="bg-amber-50/95 border border-amber-200 text-amber-950 px-2.5 py-1.5 rounded-xl shadow-2xs flex items-center justify-between gap-2 text-[11px] sm:text-xs transition-all"
     >
       <div className="flex items-center gap-2 min-w-0 flex-1">
         <div className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0">
           <Sparkles className="w-3 h-3 text-amber-600" />
         </div>
-        <p className="font-semibold truncate leading-snug">{displayMessage}</p>
+        <p className="font-semibold truncate leading-snug">{localizedMessage}</p>
       </div>
 
       {(isServiceSuspended || game?.isServiceSuspended) && (
         <span className="shrink-0 text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded uppercase flex items-center gap-1">
           <AlertCircle className="w-2.5 h-2.5" />
-          <span>Suspended</span>
+          <span>{t.suspendedBadge}</span>
         </span>
       )}
     </div>

@@ -1,6 +1,7 @@
 import React from 'react';
-import { X, Settings, Volume2, Smartphone, Moon, Sun, Monitor, RefreshCw, LogOut } from 'lucide-react';
+import { X, Settings, Volume2, Globe, RefreshCw } from 'lucide-react';
 import { UserPreferences } from '../types/bingo';
+import { useLanguage } from '../context/LanguageContext';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -17,8 +18,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   preferences,
   onUpdatePreferences,
   onClearMarkedNumbers,
-  onLogout,
 }) => {
+  const { t, language, setLanguage } = useLanguage();
+
   if (!isOpen) return null;
 
   return (
@@ -33,8 +35,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Settings className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm">Game & Card Settings</h3>
-              <p className="text-[11px] text-slate-300">Preferences and card customization</p>
+              <h3 className="font-bold text-sm">{t.settings}</h3>
+              <p className="text-[11px] text-slate-300">
+                {language === 'am' ? 'የጨዋታ ምርጫዎች እና የካርድ ማስተካከያ' : 'Preferences and card customization'}
+              </p>
             </div>
           </div>
           <button
@@ -48,12 +52,57 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Content */}
         <div className="p-5 space-y-4 overflow-y-auto flex-1 text-xs text-slate-700">
+          {/* Language Selection */}
+          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+            <div className="flex items-center gap-2">
+              <Globe className="w-4 h-4 text-indigo-600" />
+              <span className="font-bold text-slate-900 text-xs">{t.language}: {t.languageName}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setLanguage('en');
+                  onUpdatePreferences({ language: 'en' });
+                }}
+                className={`py-2 px-3 rounded-xl font-bold text-xs border transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                  language === 'en'
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span>English</span>
+                {language === 'en' && <span className="text-[10px]">✓</span>}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLanguage('am');
+                  onUpdatePreferences({ language: 'am' });
+                }}
+                className={`py-2 px-3 rounded-xl font-bold text-xs border transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                  language === 'am'
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span>አማርኛ (Amharic)</span>
+                {language === 'am' && <span className="text-[10px]">✓</span>}
+              </button>
+            </div>
+          </div>
+
           {/* Auto Complete Toggle */}
           <div className="p-3.5 bg-indigo-50/70 rounded-2xl border border-indigo-100 flex items-center justify-between gap-3">
             <div>
-              <span className="font-bold text-slate-900 block text-xs">Auto Complete (Cross-Card Sync)</span>
+              <span className="font-bold text-slate-900 block text-xs">
+                {language === 'am' ? 'ራስ-ሰር ምልክት (Auto Daub / Complete)' : 'Auto Complete (Cross-Card Sync)'}
+              </span>
               <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
-                When you manually mark a called number on one card, automatically mark the same number on your other matching cards.
+                {language === 'am'
+                  ? 'የተጠራ ቁጥር በአንድ ካርድ ላይ ሲመረጥ፣ በሌሎች ተዛማጅ ካርዶች ላይ በራስ-ሰር ይመረጣል።'
+                  : 'When you manually mark a called number on one card, automatically mark the same number on your other matching cards.'}
               </p>
             </div>
             <button
@@ -73,12 +122,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Sound & Voice Options */}
           <div className="space-y-2">
-            <h4 className="font-bold text-slate-900 text-xs">Audio & Caller</h4>
+            <h4 className="font-bold text-slate-900 text-xs">
+              {language === 'am' ? 'ድምፅ እና የቁጥር ጠሪ' : 'Audio & Caller'}
+            </h4>
 
             <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
               <div className="flex items-center gap-2">
                 <Volume2 className="w-4 h-4 text-slate-600" />
-                <span className="font-medium">Sound Effects</span>
+                <span className="font-medium">{t.soundEffects}</span>
               </div>
               <button
                 type="button"
@@ -98,7 +149,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
               <div className="flex items-center gap-2">
                 <Volume2 className="w-4 h-4 text-slate-600" />
-                <span className="font-medium">Voice Caller (B-7, I-22...)</span>
+                <span className="font-medium">
+                  {language === 'am' ? 'የድምፅ ጠሪ (B-7, I-22...)' : 'Voice Caller (B-7, I-22...)'}
+                </span>
               </div>
               <button
                 type="button"
@@ -118,7 +171,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Grid Layout Configuration */}
           <div>
-            <h4 className="font-bold text-slate-900 text-xs mb-1.5">Card Grid Columns</h4>
+            <h4 className="font-bold text-slate-900 text-xs mb-1.5">
+              {language === 'am' ? 'የካርድ አቀማመጥ ረድፎች' : 'Card Grid Columns'}
+            </h4>
             <div className="grid grid-cols-3 gap-2">
               {[1, 2, 3].map((cols) => (
                 <button
@@ -131,7 +186,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  {cols} {cols === 1 ? 'Column' : 'Columns'}
+                  {cols} {language === 'am' ? 'አምድ' : cols === 1 ? 'Column' : 'Columns'}
                 </button>
               ))}
             </div>
@@ -139,13 +194,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Sort Cards By */}
           <div>
-            <h4 className="font-bold text-slate-900 text-xs mb-1.5">Sort Cards By</h4>
+            <h4 className="font-bold text-slate-900 text-xs mb-1.5">
+              {language === 'am' ? 'ካርዶችን ደርድር በ' : 'Sort Cards By'}
+            </h4>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { id: 'id', label: 'Card ID' },
-                { id: 'recent', label: 'Recently Created' },
-                { id: 'registration', label: 'Registered First' },
-                { id: 'marked', label: 'Most Marked Cells' },
+                { id: 'id', label: language === 'am' ? 'በካርድ ቁጥር' : 'Card ID' },
+                { id: 'recent', label: language === 'am' ? 'በቅርብ የተፈጠረ' : 'Recently Created' },
+                { id: 'registration', label: language === 'am' ? 'የተመዘገቡት መጀመሪያ' : 'Registered First' },
+                { id: 'marked', label: language === 'am' ? 'ብዙ የተመረጡ ሴሎች' : 'Most Marked Cells' },
               ].map((s) => (
                 <button
                   key={s.id}
@@ -174,7 +231,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               className="w-full py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
-              <span>Clear Marked Numbers on My Cards</span>
+              <span>{language === 'am' ? 'በካርዶቼ ላይ ያሉ ምልክቶችን አጥፋ' : 'Clear Marked Numbers on My Cards'}</span>
             </button>
           </div>
         </div>

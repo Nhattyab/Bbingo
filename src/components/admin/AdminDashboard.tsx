@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   LogOut,
   UserCog,
+  DollarSign,
 } from 'lucide-react';
 import {
   GameSession,
@@ -33,6 +34,7 @@ import {
   AdminNavigationTab,
 } from '../../types/bingo';
 import { OverviewTab } from './OverviewTab';
+import { FinancialTab } from './FinancialTab';
 import { GameSetupTab } from './GameSetupTab';
 import { LiveGameControlTab } from './LiveGameControlTab';
 import { UserManagementTab } from './UserManagementTab';
@@ -598,6 +600,9 @@ export function AdminDashboard({
   ];
 
   const adminNavItems = [
+    ...(currentUser?.role === 'admin'
+      ? [{ id: 'financial', label: 'Wallet & Payments', icon: DollarSign }]
+      : []),
     { id: 'users', label: 'User Management', icon: UserCog, badge: players.length },
     { id: 'settings', label: 'Settings & Host Permissions', icon: Shield },
     { id: 'audit-logs', label: 'Audit Logs', icon: FileText },
@@ -901,6 +906,19 @@ export function AdminDashboard({
                 claimWindowSeconds={claimWindowSeconds}
               />
             )}
+
+            {activeTab === 'financial' &&
+              (currentUser?.role === 'admin' ? (
+                <FinancialTab currentAdminId={currentUser.id} />
+              ) : (
+                <div className="bg-white border border-rose-200 rounded-xl p-8 text-center max-w-md mx-auto mt-10">
+                  <Shield className="w-10 h-10 text-rose-500 mx-auto mb-3" />
+                  <h3 className="font-extrabold text-slate-900 text-sm mb-1">Administrator Access Required</h3>
+                  <p className="text-xs text-slate-500">
+                    Wallet &amp; Payments management is restricted to administrator accounts.
+                  </p>
+                </div>
+              ))}
 
             {activeTab === 'setup' && (
               <GameSetupTab

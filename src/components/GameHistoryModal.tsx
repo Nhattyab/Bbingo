@@ -17,6 +17,7 @@ import { HistoricalGame, User, BingoCard, BingoBall } from '../types/bingo';
 import { WINNING_RULE_LABELS, COLUMN_COLORS, getDisplayCardNumber } from '../utils/bingoRules';
 import { BingoBoard75 } from './BingoBoard75';
 import { CardInspectModal } from './CardInspectModal';
+import { useLanguage } from '../context/LanguageContext';
 
 interface GameHistoryModalProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
   onClose,
   currentUser,
 }) => {
+  const { t, getRuleName } = useLanguage();
   const [games, setGames] = useState<HistoricalGame[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [fromDate, setFromDate] = useState<string>('');
@@ -193,12 +195,12 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
               )}
               <div>
                 <h3 className="font-bold text-sm">
-                  {selectedGame ? `Game Recap: ${selectedGame.gameCode}` : 'My Game History'}
+                  {selectedGame ? `${t.recapTitle}: ${selectedGame.gameCode}` : t.myGameHistoryTitle}
                 </h3>
                 <p className="text-[11px] text-slate-400">
                   {selectedGame
-                    ? 'Review balls called, winning number, and card results'
-                    : 'Games you played, cards registered, and results'}
+                    ? t.recapSubtitle
+                    : t.myGameHistorySubtitle}
                 </p>
               </div>
             </div>
@@ -236,25 +238,25 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200/80 text-xs">
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">
-                        Winning Rule
+                        {t.activeWinningRule}
                       </span>
                       <span className="font-bold text-amber-700">
-                        {WINNING_RULE_LABELS[selectedGame.winningRule] || selectedGame.winningRule}
+                        {getRuleName(selectedGame.winningRule)}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">
-                        My Cards Registered
+                        {t.cardsRegisteredByMe}
                       </span>
                       <span className="font-mono font-bold text-blue-700">
-                        {getMyCardsForGame(selectedGame).length} Card(s)
+                        {getMyCardsForGame(selectedGame).length}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">
-                        Total Prize Pool
+                        {t.pool}
                       </span>
                       <span className="font-mono font-bold text-emerald-600">
                         ${selectedGame.prizePool.toFixed(2)}
@@ -267,7 +269,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                 <div>
                   <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>75-Ball Master Board (Called Numbers Marked)</span>
+                    <span>{t.masterBoardTitle}</span>
                   </h4>
                   <BingoBoard75
                     calledNumbers={selectedGame.ballSequence || []}
@@ -283,10 +285,10 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                     </div>
                     <div>
                       <span className="text-[10px] uppercase font-bold text-amber-900 block">
-                        Last Winning Number
+                        {t.lastWinningNumber}
                       </span>
                       <span className="text-xs font-semibold text-amber-800">
-                        Ball that triggered the verified Bingo claim
+                        {t.lastWinningNumberDesc}
                       </span>
                     </div>
                   </div>
@@ -337,14 +339,14 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                         <CreditCard className="w-3.5 h-3.5 text-blue-600" />
-                        <span>Row 1: My Registered Cards</span>
+                        <span>{t.row1MyCards}</span>
                       </div>
-                      <span className="text-[10px] text-slate-400">Click any card ID to view matrix</span>
+                      <span className="text-[10px] text-slate-400">{t.clickToInspect}</span>
                     </div>
 
                     {getMyCardsForGame(selectedGame).length === 0 ? (
                       <p className="text-slate-400 text-xs italic">
-                        You had no registered cards in this game round.
+                        {t.noCardsRegisteredByYou}
                       </p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
@@ -368,13 +370,13 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                         <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Row 2: Winners Cards</span>
+                        <span>{t.row2WinnersCards}</span>
                       </div>
-                      <span className="text-[10px] text-slate-400">Click any card ID to view matrix</span>
+                      <span className="text-[10px] text-slate-400">{t.clickToInspect}</span>
                     </div>
 
                     {(!selectedGame.winners || selectedGame.winners.length === 0) ? (
-                      <p className="text-slate-400 text-xs italic">No confirmed winners recorded.</p>
+                      <p className="text-slate-400 text-xs italic">{t.noConfirmedWinners}</p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {selectedGame.winners.map((w) => (
@@ -400,13 +402,13 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
                         <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
-                        <span>Row 3: Blocked Cards</span>
+                        <span>{t.row3BlockedCards}</span>
                       </div>
-                      <span className="text-[10px] text-slate-400">Click any card ID to view matrix</span>
+                      <span className="text-[10px] text-slate-400">{t.clickToInspect}</span>
                     </div>
 
                     {(!selectedGame.blockedCards || selectedGame.blockedCards.length === 0) ? (
-                      <p className="text-slate-400 text-xs italic">No cards were blocked in this round.</p>
+                      <p className="text-slate-400 text-xs italic">{t.noBlockedInRound}</p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {selectedGame.blockedCards.map((b) => (
@@ -419,7 +421,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                             <ShieldAlert className="w-3 h-3 text-rose-500" />
                             <span>#{getDisplayCardNumber(b.cardId)}</span>
                             <span className="text-[10px] font-sans text-rose-600">
-                              (Blocked: {b.reason || 'False claim'})
+                              ({b.reason || 'Blocked'})
                             </span>
                           </button>
                         ))}
@@ -436,7 +438,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                       <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Filter by Date</span>
+                      <span>{t.filterByDate}</span>
                     </div>
 
                     {/* Quick filter chips */}
@@ -450,28 +452,28 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                             : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                         }`}
                       >
-                        All
+                        {t.filterAll}
                       </button>
                       <button
                         type="button"
                         onClick={() => handleQuickFilter(1)}
                         className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 transition cursor-pointer"
                       >
-                        Today
+                        {t.filterToday}
                       </button>
                       <button
                         type="button"
                         onClick={() => handleQuickFilter(7)}
                         className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 transition cursor-pointer"
                       >
-                        Last 7 Days
+                        {t.filter7Days}
                       </button>
                       <button
                         type="button"
                         onClick={() => handleQuickFilter(30)}
                         className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-100 transition cursor-pointer"
                       >
-                        Last 30 Days
+                        {t.filter30Days}
                       </button>
                     </div>
                   </div>
@@ -479,7 +481,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                   {/* Date Input Pickers */}
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2.5 py-1 text-xs">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">From:</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{t.fromDate}</span>
                       <input
                         type="date"
                         value={fromDate}
@@ -488,7 +490,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                       />
                     </div>
                     <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-2.5 py-1 text-xs">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">To:</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{t.toDate}</span>
                       <input
                         type="date"
                         value={toDate}
@@ -505,7 +507,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                         }}
                         className="text-[10px] text-blue-600 font-semibold hover:underline px-1 cursor-pointer"
                       >
-                        Clear Filters
+                        {t.clearFilters}
                       </button>
                     )}
                   </div>
@@ -516,10 +518,10 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                   <div className="text-center py-10 text-slate-400">Loading your game history...</div>
                 ) : filteredGames.length === 0 ? (
                   <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-6 space-y-1">
-                    <p className="font-bold text-slate-700">No played games found</p>
+                    <p className="font-bold text-slate-700">{t.noPlayedGamesFound}</p>
                     <p className="text-slate-400 text-xs">
                       {fromDate || toDate
-                        ? 'No games match your selected date filter.'
+                        ? t.noGamesMatchFilter
                         : 'You haven’t participated in any completed games yet.'}
                     </p>
                   </div>
@@ -546,13 +548,13 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
 
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600">
                           <span>
-                            Rule: <strong className="text-slate-800">{WINNING_RULE_LABELS[g.winningRule] || g.winningRule}</strong>
+                            {t.activeWinningRule}: <strong className="text-slate-800">{getRuleName(g.winningRule)}</strong>
                           </span>
                           <span>
-                            My Cards: <strong className="text-blue-700 font-mono">{myCards.length}</strong>
+                            {t.cardsRegisteredByMe}: <strong className="text-blue-700 font-mono">{myCards.length}</strong>
                           </span>
                           <span>
-                            Prize Pool: <strong className="text-emerald-600 font-mono">${g.prizePool.toFixed(2)}</strong>
+                            {t.pool}: <strong className="text-emerald-600 font-mono">${g.prizePool.toFixed(2)}</strong>
                           </span>
                         </div>
 
@@ -570,7 +572,7 @@ export const GameHistoryModal: React.FC<GameHistoryModalProps> = ({
                             className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:from-blue-800 active:to-indigo-800 text-white rounded-xl font-bold text-xs shadow-2xs transition cursor-pointer shrink-0"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            <span>Show Details / Recap</span>
+                            <span>{t.showDetailsRecap}</span>
                           </button>
                         </div>
                       </div>

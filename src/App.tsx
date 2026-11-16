@@ -30,10 +30,13 @@ import { NumberDetailModal } from './components/NumberDetailModal';
 import { SplashScreen } from './components/SplashScreen';
 import { HostControlsModal } from './components/HostControlsModal';
 import { AdminDashboard } from './components/admin/AdminDashboard';
+import { WalletModal } from './components/wallet/WalletModal';
 import { WINNING_RULE_LABELS } from './utils/bingoRules';
+import { useLanguage } from './context/LanguageContext';
 import { Plus } from 'lucide-react';
 
 export default function App() {
+  const { t, language } = useLanguage();
   const [loading, setLoading] = useState<boolean>(true);
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -98,6 +101,7 @@ export default function App() {
   });
   const [celebrationWinner, setCelebrationWinner] = useState<Winner | null>(null);
   const [selectedBallNumber, setSelectedBallNumber] = useState<number | null>(null);
+  const [isWalletOpen, setIsWalletOpen] = useState<boolean>(false);
 
   const prevBallCountRef = useRef<number>(0);
   const prevStatusRef = useRef<string>('');
@@ -190,10 +194,30 @@ export default function App() {
     }
   };
 
-  // Only refetch on currentUser switch (not on sound/preference adjustments)
+  // Only refetch on currentUser?.id switch (not on sound/preference adjustments)
   useEffect(() => {
     fetchGameAndCards();
-  }, [currentUser]);
+
+    if (currentUser?.id) {
+      fetch(`/api/wallet?userId=${currentUser.id}`, {
+        headers: { 'x-user-id': currentUser.id },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.wallet && typeof data.wallet.availableBalance === 'number') {
+            setCurrentUser((prev) => {
+              if (!prev || prev.balance === data.wallet.availableBalance) return prev;
+              const updated = { ...prev, balance: data.wallet.availableBalance };
+              try {
+                localStorage.setItem('bingo_user', JSON.stringify(updated));
+              } catch {}
+              return updated;
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [currentUser?.id]);
 
   // Synchronize audio preferences without refetching cards or wiping local marks
   useEffect(() => {
@@ -357,6 +381,39 @@ export default function App() {
         sse.addEventListener('BINGO_SERVICE_STARTED', () => {
           setGame((prev) => (prev ? { ...prev, isServiceSuspended: false } : prev));
           fetchGameAndCards();
+        });
+
+        sse.addEventListener('WALLET_UPDATED', (e: MessageEvent) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (data.userId && currentUser && data.userId === currentUser.id && data.wallet) {
+              setCurrentUser((prev) => {
+                if (!prev) return prev;
+                const updated = { ...prev, balance: data.wallet.availableBalance };
+                try {
+                  localStorage.setItem('bingo_user', JSON.stringify(updated));
+                } catch {}
+                return updated;
+              });
+              window.dispatchEvent(new CustomEvent('bingo-wallet-updated', { detail: data }));
+            }
+          } catch {}
+        });
+
+        sse.addEventListener('DEPOSIT_UPDATED', (e: MessageEvent) => {
+          try {
+            const data = JSON.parse(e.data);
+            if (data.userId && currentUser && data.userId === currentUser.id) {
+              window.dispatchEvent(new CustomEvent('bingo-deposit-updated', { detail: data }));
+            }
+          } catch {}
+        });
+
+        sse.addEventListener('TELEBIRR_CONFIG_UPDATED', (e: MessageEvent) => {
+          try {
+            const data = JSON.parse(e.data);
+            window.dispatchEvent(new CustomEvent('bingo-telebirr-config-updated', { detail: data }));
+          } catch {}
         });
 
         sse.addEventListener('CARD_REGISTERED', (e: MessageEvent) => {
@@ -933,6 +990,7 @@ export default function App() {
         onOpenMenu={() => setIsMenuOpen(true)}
         onOpenHostControls={() => setShowAdminPanel(true)}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenWallet={() => setIsWalletOpen(true)}
       />
 
       {/* Main Player View Content
@@ -956,23 +1014,6 @@ export default function App() {
             >
               ✕
             </button>
-          </div>
-        )}
-
-        {/* 15-Second Winner Claim Window Banner for Players */}
-        {claimWindowSeconds > 0 && game?.claimWindowActive && (
-          <div className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white p-3.5 rounded-2xl shadow-lg border border-purple-400 flex items-center justify-between animate-pulse">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center text-2xl font-black tabular-nums shadow-inner border border-white/30">
-                {claimWindowSeconds}
-              </div>
-              <div>
-                <h2 className="font-extrabold text-sm tracking-tight">15-Second Winner Claim Window Open!</h2>
-                <p className="text-purple-100 text-[11px] font-medium">
-                  A player has claimed Bingo! If you have a winning pattern, claim now!
-                </p>
-              </div>
-            </div>
           </div>
         )}
 
@@ -1057,8 +1098,8 @@ export default function App() {
           type="button"
           onClick={() => setIsGenerateOpen(true)}
           className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-rose-600 via-rose-500 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 active:scale-95 text-white shadow-xl flex items-center justify-center transition cursor-pointer ring-4 ring-rose-500/20"
-          title="Generate Bingo Cards"
-          aria-label="Generate Bingo Cards"
+          title={language === 'am' ? 'የቢንጎ ካርዶችን ፍጠር' : 'Generate Bingo Cards'}
+          aria-label={language === 'am' ? 'የቢንጎ ካርዶችን ፍጠር' : 'Generate Bingo Cards'}
         >
           <Plus className="w-7 h-7 stroke-[2.5]" />
         </button>
@@ -1141,6 +1182,7 @@ export default function App() {
         onOpenSavedCards={() => setIsSavedCardsOpen(true)}
         onOpenHostDashboard={isHostOrAdmin ? () => setShowAdminPanel(true) : undefined}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenWallet={() => setIsWalletOpen(true)}
       />
 
       {/* Game Rules Modal */}
@@ -1174,6 +1216,18 @@ export default function App() {
         }}
         onSuccess={handleLoginSuccess}
         canClose={Boolean(currentUser)}
+      />
+
+      {/* Real-Money Player Wallet Modal */}
+      <WalletModal
+        isOpen={isWalletOpen}
+        onClose={() => setIsWalletOpen(false)}
+        user={currentUser}
+        onBalanceUpdated={(newBal) => {
+          if (currentUser) {
+            setCurrentUser((prev) => (prev ? { ...prev, balance: newBal } : prev));
+          }
+        }}
       />
     </div>
   );

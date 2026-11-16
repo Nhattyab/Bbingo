@@ -13,8 +13,11 @@ import {
   LogOut,
   LogIn,
   Shield,
+  Globe,
+  Wallet,
 } from 'lucide-react';
 import { User } from '../types/bingo';
+import { useLanguage } from '../context/LanguageContext';
 
 interface NavigationDrawerProps {
   isOpen: boolean;
@@ -26,6 +29,7 @@ interface NavigationDrawerProps {
   onOpenSavedCards: () => void;
   onOpenHostDashboard?: () => void;
   onOpenAuth: () => void;
+  onOpenWallet?: () => void;
 }
 
 export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
@@ -38,18 +42,29 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   onOpenSavedCards,
   onOpenHostDashboard,
   onOpenAuth,
+  onOpenWallet,
 }) => {
+  const { language, setLanguage, toggleLanguage, t } = useLanguage();
   if (!isOpen) return null;
 
   const isHost = user?.role === 'host' || user?.role === 'admin';
 
   const navLinks: { id: string; label: string; icon: any; onClick?: () => void }[] = [
-    { id: 'game', label: 'Home / Game', icon: Home },
-    { id: 'rules', label: 'Game Rules', icon: BookOpen },
-    { id: 'history', label: 'Game History', icon: History },
-    { id: 'profile', label: 'Profile', icon: UserIcon },
-    { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'game', label: t.homeGame, icon: Home },
+    {
+      id: 'wallet',
+      label: language === 'am' ? 'የገንዘብ ቦርሳ (Wallet)' : 'Wallet & Telebirr',
+      icon: Wallet,
+      onClick: () => {
+        onClose();
+        if (onOpenWallet) onOpenWallet();
+      },
+    },
+    { id: 'rules', label: t.gameRules, icon: BookOpen },
+    { id: 'history', label: t.gameHistory, icon: History },
+    { id: 'profile', label: t.profile, icon: UserIcon },
+    { id: 'settings', label: t.settings, icon: Settings },
+    { id: 'notifications', label: t.notifications, icon: Bell },
   ];
 
   return (
@@ -64,8 +79,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               75
             </div>
             <div>
-              <div className="font-extrabold text-sm tracking-tight">MY Bingo</div>
-              <div className="text-[11px] text-blue-200">Classic Edition</div>
+              <div className="font-extrabold text-sm tracking-tight">{language === 'am' ? t.appName : 'MY Bingo'}</div>
+              <div className="text-[11px] text-blue-200">{t.classicEdition}</div>
             </div>
           </div>
           <button
@@ -75,6 +90,38 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
           >
             <X className="w-4 h-4" />
           </button>
+        </div>
+
+        {/* Language Switch Section */}
+        <div className="px-4 py-2.5 bg-indigo-50/70 border-b border-indigo-100/80 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+            <Globe className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{language === 'am' ? 'ቋንቋ (Language)' : 'Language (ቋንቋ)'}</span>
+          </div>
+          <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setLanguage('en')}
+              className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                language === 'en'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              English
+            </button>
+            <button
+              type="button"
+              onClick={() => setLanguage('am')}
+              className={`px-2 py-0.5 rounded-md text-[11px] font-bold transition cursor-pointer ${
+                language === 'am'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              አማርኛ
+            </button>
+          </div>
         </div>
 
         {/* User Account Card */}
@@ -100,8 +147,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
           ) : (
             <div className="flex items-center justify-between">
               <div>
-                <div className="font-bold text-slate-700 text-xs">Not Signed In</div>
-                <div className="text-[11px] text-slate-400">Guest mode</div>
+                <div className="font-bold text-slate-700 text-xs">{t.notSignedIn}</div>
+                <div className="text-[11px] text-slate-400">{t.guestMode}</div>
               </div>
               <button
                 type="button"
@@ -111,7 +158,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 }}
                 className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-2xs cursor-pointer"
               >
-                Sign In
+                {t.signIn}
               </button>
             </div>
           )}
@@ -130,7 +177,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-amber-950 bg-amber-100 border border-amber-300 hover:bg-amber-200 shadow-2xs transition-all cursor-pointer mb-2"
             >
               <Shield className="w-4 h-4 text-amber-700" />
-              <span>Admin & Host Control Panel</span>
+              <span>{t.adminPanel}</span>
             </button>
           )}
 
@@ -175,7 +222,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
-              <span>Sign Out</span>
+              <span>{t.signOut}</span>
             </button>
           ) : (
             <button
@@ -187,7 +234,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors cursor-pointer shadow-xs"
             >
               <LogIn className="w-4 h-4" />
-              <span>Sign In / Switch Account</span>
+              <span>{t.signIn}</span>
             </button>
           )}
         </div>

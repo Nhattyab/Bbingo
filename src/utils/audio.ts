@@ -188,13 +188,17 @@ class SoundManager {
     }
   }
 
-  speakCall(letter: string, number: number) {
+  speakCall(letter: string, number: number, language: string = 'en') {
     if (!this.voiceCallerEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) {
       return;
     }
     try {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(`${letter} ${number}`);
+      const textToSpeak = language === 'am' ? `${letter} ${number}` : `${letter} ${number}`;
+      const utterance = new SpeechSynthesisUtterance(textToSpeak);
+      if (language === 'am') {
+        utterance.lang = 'am-ET';
+      }
       utterance.rate = 1.05;
       utterance.pitch = 1.0;
       window.speechSynthesis.speak(utterance);

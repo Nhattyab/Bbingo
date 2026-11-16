@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Layers, Ticket, Check } from 'lucide-react';
+import { X, Sparkles, Check } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 interface CardGenerationModalProps {
   isOpen: boolean;
@@ -16,8 +17,8 @@ export const CardGenerationModal: React.FC<CardGenerationModalProps> = ({
   onGenerate,
   currentCardCount,
   maxCards,
-  entryPrice,
 }) => {
+  const { t, language } = useLanguage();
   const [quantity, setQuantity] = useState<number>(1);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
@@ -50,8 +51,12 @@ export const CardGenerationModal: React.FC<CardGenerationModalProps> = ({
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-sm">Generate Bingo Cards</h3>
-              <p className="text-[11px] text-rose-100">Add cards to your game selection</p>
+              <h3 className="font-bold text-sm">
+                {language === 'am' ? 'የቢንጎ ካርዶችን ፍጠር' : 'Generate Bingo Cards'}
+              </h3>
+              <p className="text-[11px] text-rose-100">
+                {language === 'am' ? 'ለጨዋታዎ ካርዶችን ያክሉ' : 'Add cards to your game selection'}
+              </p>
             </div>
           </div>
           <button
@@ -68,18 +73,22 @@ export const CardGenerationModal: React.FC<CardGenerationModalProps> = ({
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs text-slate-700">
           <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
             <div>
-              <span className="text-[11px] text-slate-500 font-medium block">Current Cards</span>
+              <span className="text-[11px] text-slate-500 font-medium block">
+                {language === 'am' ? 'የአሁን ካርዶች' : 'Current Cards'}
+              </span>
               <span className="font-mono text-sm font-bold text-slate-900">{currentCardCount} / {maxCards}</span>
             </div>
             <div className="text-right">
-              <span className="text-[11px] text-slate-500 font-medium block">Remaining Allowed</span>
+              <span className="text-[11px] text-slate-500 font-medium block">
+                {language === 'am' ? 'የቀረው የተፈቀደ' : 'Remaining Allowed'}
+              </span>
               <span className="font-mono text-sm font-bold text-indigo-600">{remainingCards}</span>
             </div>
           </div>
 
           <div>
             <label className="font-bold text-slate-900 block mb-1.5">
-              Select Number of Cards to Generate
+              {language === 'am' ? 'የሚፈጠሩትን የካርድ ብዛት ይምረጡ' : 'Select Number of Cards to Generate'}
             </label>
             <div className="grid grid-cols-4 gap-2">
               {[1, 2, 3, 5].map((cnt) => (
@@ -103,8 +112,12 @@ export const CardGenerationModal: React.FC<CardGenerationModalProps> = ({
           </div>
 
           <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
-            <p className="font-bold mb-0.5">Important:</p>
-            <p>Generated cards are created as unregistered. You must click "Register Card" on each card before the game starts to participate.</p>
+            <p className="font-bold mb-0.5">{language === 'am' ? 'አስፈላጊ ማስታወሻ:' : 'Important:'}</p>
+            <p>
+              {language === 'am'
+                ? 'የተፈጠሩ ካርዶች ያልተመዘገቡ ሆነው ይፈጠራሉ። በጨዋታው ለመሳተፍ ጨዋታው ከመጀመሩ በፊት በእያንዳንዱ ካርድ ላይ "ካርድ መዝግብ" የሚለውን መጫን አለብዎት።'
+                : 'Generated cards are created as unregistered. You must click "Register Card" on each card before the game starts to participate.'}
+            </p>
           </div>
 
           <div className="flex items-center gap-2 pt-2">
@@ -114,7 +127,7 @@ export const CardGenerationModal: React.FC<CardGenerationModalProps> = ({
               onClick={onClose}
               className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
             >
-              Cancel
+              {language === 'am' ? 'ሰርዝ' : 'Cancel'}
             </button>
             <button
               type="submit"
@@ -122,7 +135,13 @@ export const CardGenerationModal: React.FC<CardGenerationModalProps> = ({
               className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs bg-rose-600 hover:bg-rose-700 active:scale-95 text-white shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <Check className="w-3.5 h-3.5" />
-              <span>{isGenerating ? 'Generating...' : `Generate (${allowedQuantity})`}</span>
+              <span>
+                {isGenerating
+                  ? (language === 'am' ? 'በመፍጠር ላይ...' : 'Generating...')
+                  : language === 'am'
+                  ? `ፍጠር (${allowedQuantity})`
+                  : `Generate (${allowedQuantity})`}
+              </span>
             </button>
           </div>
         </form>

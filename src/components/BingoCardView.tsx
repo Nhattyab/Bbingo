@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { BingoCard, BingoColumn, GameStatus, BlockedCard } from '../types/bingo';
 import { COLUMN_COLORS, getDisplayCardNumber } from '../utils/bingoRules';
+import { useLanguage } from '../context/LanguageContext';
 
 interface BingoCardViewProps {
   cards: BingoCard[];
@@ -56,20 +57,24 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
   claimingCardId,
   registrationConflictError,
 }) => {
+  const { t, language } = useLanguage();
   if (cards.length === 0) {
     return (
       <section
-        aria-label="My Bingo Cards"
+        aria-label={t.myBingoCards}
         className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-8 text-center space-y-3"
       >
         <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
           <Sparkles className="w-6 h-6" />
         </div>
         <div>
-          <h2 className="font-bold text-slate-800 text-sm">No Bingo Cards Generated</h2>
+          <h2 className="font-bold text-slate-800 text-sm">
+            {language === 'am' ? 'ምንም የቢንጎ ካርድ አልተፈጠረም' : 'No Bingo Cards Generated'}
+          </h2>
           <p className="text-xs text-slate-500 max-w-xs mx-auto mt-1">
-            Tap the floating red <span className="font-bold text-rose-600">+</span> button in the bottom-right
-            corner to generate random cards for this game. Remember to click "Register Card" after generating!
+            {language === 'am'
+              ? 'ለዚህ ጨዋታ የቢንጎ ካርዶችን ለመፍጠር ከታች በስተቀኝ ያለውን ቀይ የ+ ቁልፍ ይጫኑ። ከፈጠሩ በኋላ "ካርድ መዝግብ" የሚለውን መጫንዎን ያስታውሱ!'
+              : 'Tap the floating red + button in the bottom-right corner to generate random cards for this game. Remember to click "Register Card" after generating!'}
           </p>
         </div>
       </section>
@@ -132,19 +137,19 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
 
   return (
     <section
-      aria-label="My Bingo Cards"
+      aria-label={t.myBingoCards}
       className="bg-white rounded-xl sm:rounded-2xl shadow-xs border border-slate-200/80 p-2.5 sm:p-3.5 space-y-2.5 sm:space-y-3.5"
     >
       {/* Top Header of My Cards & Quick Column Selector + Register All */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
         <div className="flex items-center gap-1.5 sm:gap-2">
-          <h2 className="text-xs sm:text-sm font-bold text-slate-900">My Bingo Cards</h2>
+          <h2 className="text-xs sm:text-sm font-bold text-slate-900">{t.myBingoCards}</h2>
           <span className="text-[10px] sm:text-xs bg-indigo-50 text-indigo-700 font-semibold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full font-mono">
-            {cards.length} {cards.length === 1 ? 'Card' : 'Cards'}
+            {cards.length} {language === 'am' ? 'ካርዶች' : cards.length === 1 ? 'Card' : 'Cards'}
           </span>
           {unregisteredCount > 0 && registrationOpen && (
             <span className="text-[10px] sm:text-[11px] bg-amber-50 text-amber-800 font-bold px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full border border-amber-200">
-              {unregisteredCount} Unreg
+              {unregisteredCount} {language === 'am' ? 'ያልተመዘገቡ' : 'Unreg'}
             </span>
           )}
         </div>
@@ -159,9 +164,9 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                 className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
                   gridColumns === 1 ? 'bg-white text-indigo-700 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'
                 }`}
-                title="1 Column View"
+                title={language === 'am' ? 'ባለ 1 አምድ እይታ' : '1 Column View'}
               >
-                1 Col
+                1 {language === 'am' ? 'አምድ' : 'Col'}
               </button>
               <button
                 type="button"
@@ -169,9 +174,9 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                 className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
                   gridColumns === 2 ? 'bg-white text-indigo-700 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'
                 }`}
-                title="2 Columns View"
+                title={language === 'am' ? 'ባለ 2 አምድ እይታ' : '2 Columns View'}
               >
-                2 Cols
+                2 {language === 'am' ? 'አምድ' : 'Cols'}
               </button>
               <button
                 type="button"
@@ -179,9 +184,9 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                 className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
                   gridColumns === 3 ? 'bg-white text-indigo-700 shadow-2xs font-extrabold' : 'text-slate-600 hover:text-slate-900'
                 }`}
-                title="3 Columns View"
+                title={language === 'am' ? 'ባለ 3 አምድ እይታ' : '3 Columns View'}
               >
-                3 Cols
+                3 {language === 'am' ? 'አምድ' : 'Cols'}
               </button>
             </div>
           )}
@@ -194,7 +199,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
               className="text-[11px] sm:text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
             >
               <FileCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-              <span>Register All ({unregisteredCount})</span>
+              <span>{t.registerAll} ({unregisteredCount})</span>
             </button>
           )}
         </div>
@@ -261,7 +266,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                       } rounded font-bold bg-rose-100 text-rose-800 border border-rose-200`}
                     >
                       <ShieldAlert className="w-2.5 h-2.5 text-rose-600" />
-                      <span>{isVeryCompact ? 'Blk' : 'Blocked'}</span>
+                      <span>{isVeryCompact ? (language === 'am' ? 'የታገደ' : 'Blk') : (language === 'am' ? 'የታገደ' : 'Blocked')}</span>
                     </span>
                   ) : card.isRegistered ? (
                     <span
@@ -270,7 +275,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                       } rounded font-bold bg-emerald-100 text-emerald-800 border border-emerald-200`}
                     >
                       <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
-                      <span>{isVeryCompact ? 'Reg' : 'Registered'}</span>
+                      <span>{isVeryCompact ? (language === 'am' ? 'ተመዝግቧል' : 'Reg') : (language === 'am' ? 'የተመዘገበ' : 'Registered')}</span>
                     </span>
                   ) : (
                     <span
@@ -278,7 +283,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                         isVeryCompact ? 'px-1 py-0.2 text-[7px] sm:text-[8px]' : 'px-1.5 py-0.5 text-[9px] sm:text-[10px]'
                       } rounded font-bold bg-amber-100 text-amber-900 border border-amber-200`}
                     >
-                      {isVeryCompact ? 'New' : 'Not Registered'}
+                      {isVeryCompact ? (language === 'am' ? 'አዲስ' : 'New') : (language === 'am' ? 'አልተመዘገበም' : 'Not Registered')}
                     </span>
                   )}
 
@@ -301,7 +306,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
               {isCardBlocked && (
                 <div className="mb-1.5 px-1.5 py-1 bg-rose-100/90 text-rose-900 rounded-lg text-[9px] sm:text-[10px] font-bold flex items-center gap-1 border border-rose-200 animate-in fade-in">
                   <ShieldAlert className="w-3 h-3 text-rose-600 shrink-0" />
-                  <span className="truncate">Blocked: {cardBlockReason}</span>
+                  <span className="truncate">{language === 'am' ? 'የታገደ: ' : 'Blocked: '}{cardBlockReason}</span>
                 </div>
               )}
 
@@ -351,7 +356,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                                 isVeryCompact ? 'text-[6px]' : isCompact ? 'text-[7px]' : 'text-[9px]'
                               } font-extrabold leading-none`}
                             >
-                              FREE
+                              {language === 'am' ? 'ነጻ' : 'FREE'}
                             </span>
                           </div>
                         );
@@ -404,10 +409,10 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                     <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                     <span className="truncate">
                       {isRegistering
-                        ? 'Registering...'
+                        ? (language === 'am' ? 'በመመዝገብ ላይ...' : 'Registering...')
                         : registrationOpen && !isPlayActive
-                        ? 'Register'
-                        : 'Closed'}
+                        ? (language === 'am' ? 'መዝግብ' : 'Register')
+                        : (language === 'am' ? 'ተዘግቷል' : 'Closed')}
                     </span>
                   </button>
                 )}
@@ -429,7 +434,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                     <Trophy className={isVeryCompact ? 'w-3 h-3 fill-current text-yellow-200' : 'w-4 h-4 fill-current text-yellow-200'} />
                     <span className="truncate">
                       {isClaiming
-                        ? 'VERIFYING...'
+                        ? (language === 'am' ? 'በማረጋገጥ ላይ...' : 'VERIFYING...')
                         : claimWindowActive && claimWindowSeconds !== undefined && claimWindowSeconds > 0
                         ? `BINGO (${claimWindowSeconds}s)`
                         : 'BINGO'}
@@ -445,7 +450,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                     } rounded-lg font-semibold bg-amber-50 text-amber-800 border border-amber-200 text-center flex items-center justify-center gap-1`}
                   >
                     <Clock className="w-3 h-3 text-amber-600 animate-spin shrink-0" />
-                    <span className="truncate">Starts Soon</span>
+                    <span className="truncate">{language === 'am' ? 'በቅርቡ ይጀምራል' : 'Starts Soon'}</span>
                   </div>
                 )}
 
@@ -457,7 +462,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                     } rounded-lg font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 text-center flex items-center justify-center gap-1`}
                   >
                     <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                    <span className="truncate">Registered</span>
+                    <span className="truncate">{language === 'am' ? 'የተመዘገበ' : 'Registered'}</span>
                   </div>
                 )}
 
@@ -472,7 +477,7 @@ export const BingoCardView: React.FC<BingoCardViewProps> = ({
                     title={`This card is blocked: ${cardBlockReason}`}
                   >
                     <Trophy className="w-3 h-3 text-slate-400" />
-                    <span className="truncate">BLOCKED</span>
+                    <span className="truncate">{language === 'am' ? 'የታገደ' : 'BLOCKED'}</span>
                   </button>
                 )}
               </div>
