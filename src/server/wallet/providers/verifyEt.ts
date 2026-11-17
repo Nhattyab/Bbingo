@@ -1,10 +1,10 @@
 import crypto from 'node:crypto';
-import {
+import type {
   PaymentVerificationProvider,
   VerifyPaymentParams,
   VerificationResult,
   WebhookParseResult,
-} from './types';
+} from './types.ts';
 
 const WEBHOOK_TOLERANCE_MS = 5 * 60 * 1000; // 5 minutes replay protection window
 

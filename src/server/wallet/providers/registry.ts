@@ -1,7 +1,7 @@
-import { PaymentVerificationProvider } from './types';
-import { VerifyEtProvider } from './verifyEt';
-import { paymentProviderConfigs } from '../store';
-import { PaymentProviderConfig } from '../../../types/wallet';
+import type { PaymentVerificationProvider } from './types.ts';
+import { VerifyEtProvider } from './verifyEt.ts';
+import { paymentProviderConfigs } from '../store.ts';
+import type { PaymentProviderConfig } from '../../../types/wallet.ts';
 
 export class PaymentProviderRegistry {
   private providers = new Map<string, PaymentVerificationProvider>();

@@ -1,5 +1,5 @@
 import path from 'path';
-import {
+import type {
   Wallet,
   WalletTransaction,
   Deposit,
@@ -8,7 +8,7 @@ import {
   PaymentProviderConfig,
   WalletMigrationRecord,
   TelebirrReceivingConfig,
-} from '../../types/wallet';
+} from '../../types/wallet.ts';
 
 export const DB_FILE = path.join('/tmp', 'bingo_db.json');
 

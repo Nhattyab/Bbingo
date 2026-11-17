@@ -1,4 +1,4 @@
-import {
+import type {
   Wallet,
   WalletTransaction,
   Deposit,
@@ -10,7 +10,7 @@ import {
   WalletDiscrepancy,
   WalletReconciliationResult,
   FinancialReportSummary,
-} from '../../types/wallet';
+} from '../../types/wallet.ts';
 import {
   wallets,
   transactions,
@@ -27,9 +27,9 @@ import {
   withdrawals,
   financialAuditLogs,
   initWalletForUser,
-} from './store';
-import { paymentProviderRegistry } from './providers/registry';
-import { VerificationResult } from './providers/types';
+} from './store.ts';
+import { paymentProviderRegistry } from './providers/registry.ts';
+import type { VerificationResult } from './providers/types.ts';
 
 export type DepositStatusCode =
   | 'DEPOSIT_SUCCESSFUL'

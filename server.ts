@@ -1,12 +1,13 @@
+import 'dotenv/config';
 import express from 'express';
 import type { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { loadWalletState, getWalletStoragePayload, initWalletForUser } from './src/server/wallet/store';
-import { WalletLedgerService } from './src/server/wallet/ledger';
-import { paymentProviderRegistry } from './src/server/wallet/providers/registry';
+import { loadWalletState, getWalletStoragePayload, initWalletForUser } from './src/server/wallet/store.ts';
+import { WalletLedgerService } from './src/server/wallet/ledger.ts';
+import { paymentProviderRegistry } from './src/server/wallet/providers/registry.ts';
 export type BingoColumn = 'B' | 'I' | 'N' | 'G' | 'O';
 
 export interface BingoBall {
